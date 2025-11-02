@@ -219,99 +219,43 @@ lemma finsetGeneration
     use b, a
     exact ⟨hlt, heq.symm⟩
 
-noncomputable def pow_list (ls : List (A ⟶ B)) : (n : Nat) → List (A ⟶ pow B n)
+noncomputable def pow_list (ls : Finset (A ⟶ B)) : (n : Nat) → Finset (A ⟶ pow B n)
   | 0 => ls
   | n+1 =>
-    ls.flatMap fun f =>
-    (pow_list ls n).map (prod.lift f)
+    ls.disjiUnion (fun f => (pow_list ls n).map ⟨
+      (prod.lift f),
+      fun x y heq => by 
+        have ⟨_, heq⟩:= Limits.prod.hom_ext_iff.mp heq
+        rwa [prod.lift_snd, prod.lift_snd] at heq
+    ⟩) fun a amem b bmem hneq v vamem vbmem z zmem => by
+        exfalso
+        specialize vamem zmem
+        specialize vbmem zmem
+        simp at vamem vbmem
+        rcases vamem with ⟨wa, wamem, rfl⟩
+        rcases vbmem with ⟨wb, wbmem, hFalse⟩
+        have ⟨hFalse, _⟩ := Limits.prod.hom_ext_iff.mp hFalse
+        simp at hFalse
+        exact hneq hFalse.symm
 
-theorem pow_list.nodup
-    (ls : List (A ⟶ B))
-    (hNd : ls.Nodup)
-    : (n : Nat) → (pow_list ls n).Nodup
-  | 0 => hNd
-  | n+1 => by
-    have := pow_list.nodup _ hNd n
-    refine List.nodup_flatMap.mpr ⟨?_, ?_⟩
-    · intro h hmem
-      refine List.Nodup.map ?_ this
-      intro f₁ f₂ heq
-      have ⟨_, heq⟩:= Limits.prod.hom_ext_iff.mp heq
-      rwa [prod.lift_snd, prod.lift_snd] at heq
-    · apply List.pairwise_of_forall_sublist
-      intro a b subl
-      change (List.map _ _).Disjoint (List.map _ _)
-      intro v vamem vbmem
-      simp at vamem vbmem
-      rcases vamem with ⟨wa, wamem, rfl⟩
-      rcases vbmem with ⟨wb, wbmem, hFalse⟩
-      have ⟨hFalse, _⟩ := Limits.prod.hom_ext_iff.mp hFalse
-      rw [prod.lift_fst, prod.lift_fst] at hFalse
-      have : b ≠ a := by
-        rintro rfl
-        have := List.Nodup.sublist subl hNd
-        simp at this
-      exact this hFalse
-
-theorem pow_list.length
-    (ls : List (A ⟶ B))
-    (hNd : ls.Nodup)
-    : (n : Nat) → (pow_list ls n).length = ls.length ^ n.succ
+theorem pow_list.card
+    (ls : Finset (A ⟶ B))
+    : (n : Nat) → (pow_list ls n).card = ls.card ^ n.succ
   | 0 => by simp [pow_list]
-  | n+1 => by
-    simp [pow_list, pow_list.length _ hNd n, ←Nat.pow_add_one']
+  | n+1 => by simp [pow_list, pow_list.card _ n, ←Nat.pow_add_one']
 
 theorem pow_list.allMem
-    (ls : List (A ⟶ B))
+    (ls : Finset (A ⟶ B))
     (hAll : ∀ v, v ∈ ls)
     : (n : Nat) → ∀ v, v ∈ (pow_list ls n)
   | 0,   v => hAll v
   | n+1, v => by
-    simp only [pow_list, List.mem_flatMap, List.mem_map]
+    simp only [pow_list, Finset.mem_disjiUnion, Finset.mem_map, Function.Embedding.coeFn_mk]
     use v ≫ prod.fst, hAll _, v ≫ prod.snd, pow_list.allMem _ hAll n _
     calc
       _ = _                       := by rw [← @prod.comp_lift]
       _ = v ≫ 𝟙 (pow B (n + 1))   := by rw [@prod.lift_fst_snd]; rfl
       _ = v                       := by rw [Category.comp_id v]
-
-lemma length_eq_of_bij
-    {A B : Type _}
-    {X : List A}
-    {Y : List B}
-    (f : A → B)
-    (g : B → A)
-    (hMemF : ∀ v ∈ X, f v ∈ Y)
-    (hMemG : ∀ v ∈ Y, g v ∈ X)
-    (hL : f ∘ g = id)
-    (hR : g ∘ f = id)
-    (ndX : X.Nodup)
-    (ndY : Y.Nodup)
-    : X.length = Y.length :=
-  match X, Y with
-  | [], [] => rfl
-  | [], hb :: tb | ha :: ta, [] => by
-    simp_all only [List.not_mem_nil, List.mem_cons]
-    grind
-  | ha :: ta, b => by
-    have decEq : DecidableEq B := Classical.typeDecidableEq B
-
-    have injF : Function.Injective f := Function.LeftInverse.injective (congrFun hR)
-
-    have hMemF' : ∀ v ∈ ta, f v ∈ b.erase (f ha) := fun v hv => by
-      have x := hMemF v (List.mem_cons_of_mem ha hv)
-      clear *-injF x ndX ndY
-      induction b
-      · grind
-      case cons hd tl ih =>
-        by_cases h : f v = hd
-        · subst h
-          sorry
-        · grind
-    have hMemG' : ∀ v ∈ b.erase (f ha), g v ∈ ta := sorry
-    have := length_eq_of_bij f g hMemF' hMemG' hL hR
-    dsimp
-    rw [this]
-    exact List.length_erase_add_one (hMemF ha List.mem_cons_self)
 
 theorem ex4
     [objFin : Fintype 𝓒]
@@ -324,35 +268,26 @@ theorem ex4
   have deqhom: DecidableEq (A ⟶ B) := Classical.typeDecidableEq _
   have mf := morphFin A B
   have ⟨n, k, hlt, heq⟩:= finsetGeneration (pow B)
-  have : ∀ v, v ∈ mf.elems.toList :=
-    (Finset.mem_toList.mpr <| mf.complete ·)
-  have hLpln := pow_list.length mf.elems.toList (Finset.nodup_toList Fintype.elems) n
-  have hLplk := pow_list.length mf.elems.toList (Finset.nodup_toList Fintype.elems) k
-  have hMpln := pow_list.allMem mf.elems.toList this n
-  have hMplk := pow_list.allMem mf.elems.toList this k
-  have memBoth : ∀ (v : A ⟶ pow B n), v ∈ pow_list Fintype.elems.toList n
-      ↔ (v ≫ eqToHom heq) ∈ pow_list Fintype.elems.toList k
-      :=
-    fun _ => ⟨fun _ => hMplk _, fun _ => hMpln _⟩
-  have : (pow_list mf.elems.toList n).length = (pow_list mf.elems.toList k).length := by
-    apply length_eq_of_bij (fun x => x ≫ eqToHom heq) (fun x => x ≫ eqToHom heq.symm)
-    · exact fun v a ↦ hMplk (v ≫ eqToHom heq)
-    · exact fun v a ↦ hMpln (v ≫ eqToHom (Eq.symm heq))
-    · funext v
-      dsimp
-      rw [Category.assoc, eqToHom_trans, eqToHom_refl, Category.comp_id]
-    · funext v
-      dsimp
-      rw [Category.assoc, eqToHom_trans, eqToHom_refl, Category.comp_id]
-    · exact pow_list.nodup _ (Finset.nodup_toList Fintype.elems) _
-    · exact pow_list.nodup _ (Finset.nodup_toList Fintype.elems) _
-  have mfLenNT : 2 ≤ mf.elems.toList.length := by 
-    rw [Finset.length_toList]
+  have hLpln := pow_list.card mf.elems n
+  have hLplk := pow_list.card mf.elems k
+  have hMpln := pow_list.allMem mf.elems Fintype.complete n
+  have hMplk := pow_list.allMem mf.elems Fintype.complete k
+  have : (pow_list mf.elems n).card = (pow_list mf.elems k).card := by
+    apply Finset.card_bijective (· ≫ eqToHom heq) 
+    · refine Function.bijective_iff_has_inverse.mpr ?_
+      use (· ≫ eqToHom (Eq.symm heq))
+      constructor <;> intro _ <;> simp
+    · intro i
+      exact ⟨fun a ↦ hMplk _, fun a ↦ hMpln _⟩
+  have mfLenNT : 2 ≤ mf.elems.card := by 
     rw [←Finset.card_pair hneq]
     apply Finset.card_le_card
     exact fun x _ => Fintype.complete x
-  have := hLpln.symm.trans this |>.trans hLplk
-  sorry
+  have hFalse : Nat.pow _ _ = Nat.pow _ _ := hLpln.symm.trans this |>.trans hLplk
+  generalize mf.elems.card = c at *
+  clear *-hFalse mfLenNT hlt
+  have := (Nat.pow_right_inj (by omega)).mp hFalse
+  omega
 
 end ex4
 
