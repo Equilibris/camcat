@@ -1,7 +1,5 @@
-import Mathlib.CategoryTheory.Category.Basic
-import Mathlib.CategoryTheory.Category.Cat.Terminal
+/- import Mathlib.CategoryTheory.Category.Cat.Terminal -/
 import Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts
-import Mathlib.CategoryTheory.Iso
 
 namespace CategoryTheory.Limits
 
@@ -25,16 +23,7 @@ theorem IsBinaryProduct.hasBinaryProduct (h : IsBinaryProduct fst snd) : HasBina
 
 noncomputable def productIsBinaryProduct [HasBinaryProduct X Y]
     : IsBinaryProduct (prod.fst : X ⨯ Y ⟶ X) prod.snd :=
-  IsBinaryProduct.ofUniqueHom 
-    prod.lift
-    prod.lift_fst
-    prod.lift_snd
-    (fun {T} f g m hf hg => by
-      dsimp
-      ext
-      · rw [hf, prod.lift_fst f g]
-      · rw [hg, prod.lift_snd f g])
-
+  prodIsProd X Y
 
 end CategoryTheory.Limits
 
