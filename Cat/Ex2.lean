@@ -12,7 +12,8 @@ import Cat.L1
 import Cat.L2Live
 import Cat.Product
 
-open CategoryTheory Limits
+open CategoryTheory 
+open Limits
 
 universe u v
 
@@ -39,14 +40,6 @@ def us : PSTrans where
 def un : PSTrans where
   S := PUnit
   σ := fun _ => Option.none
-
-example : PSHom us un where
-  f := id
-  h := funext fun | .unit => by simp [un, us]
-
-example : PSHom un us where
-  f := id
-  h := funext fun | .unit => by simp [un, us]
 
 def bSsSs : PSTrans where
   S := Bool
@@ -108,9 +101,8 @@ def step (x : Conat.{u}) : Conat.{u} where
 theorem step_many {x : Conat}
     : {n : Nat} → n.repeat step x = ⟨(x.f <| n + ·), fun _ h => x.stops _ h⟩
   | 0 => by simp [Nat.repeat]
-  | n+1 => by
-    simp only [Nat.repeat, step, step_many, mk.injEq]
-    grind
+  | n+1 => (mk.injEq _ _ _ _).mpr <| funext fun v => by
+    simp [step_many, Nat.add_assoc, Nat.add_comm 1]
 
 def dest (x : Conat.{u}) : Option Conat.{u} :=
   match x.f 0 with
@@ -120,12 +112,12 @@ def dest (x : Conat.{u}) : Option Conat.{u} :=
 def corec.f {X : Type v}
     (gen : X → Option X)
     (g : X)
-    : Nat → Bool 
-  | 0   => 
-    match gen g with 
+    : Nat → Bool
+  | 0   =>
+    match gen g with
     | .some _ => .true
     | .none   => .false
-  | n+1 => match gen g with 
+  | n+1 => match gen g with
     | .some g => corec.f gen g n
     | .none   => .false
 
@@ -283,7 +275,7 @@ variable
 
 theorem ex1.a (f : X ⟶ Y) (g₁ : Y ⟶ Z₁) (g₂ : Y ⟶ Z₂)
     : f ≫ prod.lift g₁ g₂ = prod.lift (f ≫ g₁) (f ≫ g₂) := by
-  ext
+  refine Limits.prod.hom_ext_iff.mpr ⟨?_, ?_⟩
   · calc
       (f ≫ prod.lift g₁ g₂) ≫ prod.fst
         = f ≫ (prod.lift g₁ g₂ ≫ prod.fst)        := Category.assoc _ _ _
@@ -607,6 +599,92 @@ class Distributive 𝓒 [Category 𝓒] [HasBinaryProducts 𝓒] [HasBinaryCopro
         dist X Y Z = d
 
 section ex2
+
+section
+
+variable (A B : Type u)
+
+def typeProdIsProd : IsBinaryProduct (P := A × B) Prod.fst Prod.snd := 
+  .ofUniqueHom
+    (fun a b c => ⟨a c, b c⟩)
+    (fun _ _ => rfl)
+    (fun _ _ => rfl)
+    (fun f g m => by rintro rfl rfl; rfl)
+
+def typeSumIsCoprod : IsBinaryCoproduct (P := A ⊕ B) Sum.inl Sum.inr := 
+  .ofUniqueHom Sum.elim
+    (fun _ _ => rfl)
+    (fun _ _ => rfl)
+    (fun f g m => by rintro rfl rfl; exact (Sum.elim_comp_inl_inr m).symm)
+
+variable {A B}
+
+instance : HasBinaryProduct A B := (typeProdIsProd A B).hasBinaryProduct
+instance : HasBinaryCoproduct A B := (typeSumIsCoprod A B).hasBinaryCoproduct
+instance : HasBinaryProducts (Type u) := hasBinaryProducts_of_hasLimit_pair (Type u)
+instance : HasBinaryCoproducts (Type u) := hasBinaryCoproducts_of_hasColimit_pair (Type u)
+
+def dist' {X Y Z : Type u} : (X × Y) ⊕ (X × Z) → X × (Y ⊕ Z)
+  | .inl ⟨x, y⟩ => ⟨x, .inl y⟩
+  | .inr ⟨x, z⟩ => ⟨x, .inr z⟩
+
+def dist'.uniq {X Y Z : Type u} (d : X × Y ⊕ X × Z ⟶ X × (Y ⊕ Z))
+    : Prod.map (𝟙 X) Sum.inl = Sum.inl ≫ d →
+      Prod.map (𝟙 X) Sum.inr = Sum.inr ≫ d →
+        @dist' X Y Z = d := 
+  fun hl hr =>
+    funext fun
+      | .inl ⟨x, y⟩ => by
+        have : _ = d _ := funext_iff.mp hl ⟨x, y⟩
+        rw [←this]
+        rfl
+      | .inr ⟨x, y⟩ => by
+        have : _ = d _ := funext_iff.mp hr ⟨x, y⟩
+        rw [←this]
+        rfl
+
+noncomputable def isoA {X Y Z : Type u} : (X × Y) ⊕ (X × Z) ≅ (X ⨯ Y) ⨿ (X ⨯ Z) :=
+  have XZ := IsBinaryProduct.iso (typeProdIsProd X Z) productIsBinaryProduct
+  have XY := IsBinaryProduct.iso (typeProdIsProd X Y) productIsBinaryProduct
+  have XYsXZ := IsBinaryCoproduct.iso (typeSumIsCoprod (X × Y) (X × Z)) coproductIsBinaryCoproduct
+  XYsXZ.trans <| coprod.mapIso XY XZ
+noncomputable def isoB {X Y Z : Type u} : X × (Y ⊕ Z) ≅ X ⨯ (Y ⨿ Z) :=
+  have XYsZ := IsBinaryProduct.iso (typeProdIsProd X (Y ⊕ Z)) productIsBinaryProduct
+  have YZ := IsBinaryCoproduct.iso (typeSumIsCoprod Y Z) coproductIsBinaryCoproduct
+  XYsZ.trans <| prod.mapIso (Iso.refl X) YZ
+
+def isoHomBij {X Y : Type u} (x : X ≅ Y) : Function.Bijective x.hom :=
+  Function.bijective_iff_has_inverse.mpr ⟨
+    x.inv,
+    funext_iff.mp x.hom_inv_id,
+    funext_iff.mp x.inv_hom_id
+  ⟩
+def isoInvBij {X Y : Type u} (x : X ≅ Y) : Function.Bijective x.inv :=
+  Function.bijective_iff_has_inverse.mpr ⟨
+    x.hom,
+    funext_iff.mp x.inv_hom_id,
+    funext_iff.mp x.hom_inv_id
+  ⟩
+
+-- True but a pain
+noncomputable instance : Distributive (Type u) where
+  dist := fun X Y Z => isoA.inv ≫ dist' ≫ isoB.hom
+  dist_uniq := fun X Y Z d eql eqr => by
+    change (_ ∘ _) ∘ _ = d ∘ id
+    rw [show id = (@isoA X Y Z).hom ∘ isoA.inv from isoA.inv_hom_id.symm]
+    change _ = (d ∘ isoA.hom) ∘ _
+    apply (@isoA X Y Z) |> isoInvBij |>.surjective.right_cancellable.mpr
+    change _ = id ∘ (d ∘ _)
+    rw [show id = (@isoB X Y Z).hom ∘ isoB.inv from isoB.inv_hom_id.symm]
+    change isoB.hom ∘ dist' = isoB.hom ∘ (isoB.inv ∘ d ∘ isoA.hom)
+    funext v
+    apply ((@isoB X Y Z) |> isoHomBij |>.injective).eq_iff.mpr
+    apply funext_iff.mp
+    apply dist'.uniq 
+    · sorry
+    · sorry
+
+end
 
 variable [Category 𝓒] [HasBinaryProducts 𝓒] [HasBinaryCoproducts 𝓒] [Distributive 𝓒]
 

@@ -8,7 +8,7 @@ universe u
 variable
     {𝓒 : Type u}
     [Category 𝓒]
-    {X Y P T : 𝓒}
+    {U V W X Y P T : 𝓒}
 
 section prod
 
@@ -40,10 +40,8 @@ def IsBinaryProduct.lift
     : T ⟶ P :=
   IsLimit.lift h { pt := T, π := mapPair f g}
 
-#check prod.lift_fst
-
 @[simp]
-def IsBinaryProduct.lift_fst
+theorem IsBinaryProduct.lift_fst
     (h : IsBinaryProduct fst snd)
     (f : T ⟶ X)
     (g : T ⟶ Y)
@@ -51,14 +49,14 @@ def IsBinaryProduct.lift_fst
   h.fac { pt := T, π := mapPair f g } (.mk .left)
 
 @[simp]
-def IsBinaryProduct.lift_snd
+theorem IsBinaryProduct.lift_snd
     (h : IsBinaryProduct fst snd)
     (f : T ⟶ X)
     (g : T ⟶ Y)
     : h.lift f g ≫ snd = g :=
   h.fac { pt := T, π := mapPair f g } (.mk .right)
 
-def IsBinaryProduct.uniq
+theorem IsBinaryProduct.uniq
     (h : IsBinaryProduct fst snd)
     (f : T ⟶ X)
     (g : T ⟶ Y)
@@ -70,8 +68,7 @@ def IsBinaryProduct.uniq
     | .mk .left => hf
     | .mk .right => hg
 
-@[ext]
-def IsBinaryProduct.hom_ext
+theorem IsBinaryProduct.hom_ext
     (h : IsBinaryProduct fst snd)
     {f g : T ⟶ P}
     (hl : f ≫ fst = g ≫ fst)
@@ -80,12 +77,23 @@ def IsBinaryProduct.hom_ext
   BinaryFan.IsLimit.hom_ext h hl hr
 
 @[simp]
-def IsBinaryProduct.lift_fst_snd
+theorem IsBinaryProduct.lift_fst_snd
     (h : IsBinaryProduct fst snd)
     : h.lift fst snd = 𝟙 _ :=
-  hom_ext h
-    ((IsBinaryProduct.lift_fst h _ _).trans (Category.id_comp _).symm)
-    ((IsBinaryProduct.lift_snd h _ _).trans (Category.id_comp _).symm)
+  h.hom_ext
+    ((h.lift_fst _ _).trans (Category.id_comp _).symm)
+    ((h.lift_snd _ _).trans (Category.id_comp _).symm)
+
+@[simp]
+theorem IsBinaryProduct.lift_comp 
+    (h : IsBinaryProduct fst snd)
+    (f : T ⟶ X)
+    (g : T ⟶ Y)
+    (v : V ⟶ T)
+    : v ≫ h.lift f g = h.lift (v ≫ f) (v ≫ g) :=
+  h.hom_ext
+    (by simp)
+    (by simp)
 
 def IsBinaryProduct.iso
     {X Y P₁ P₂ : 𝓒}
@@ -122,10 +130,87 @@ def IsBinaryCoproduct.ofUniqueHom {inl inr}
     : IsBinaryCoproduct inl inr :=
   BinaryCofan.IsColimit.mk _ desc  hd₁ hd₂ uniq
 
-theorem IsBinaryCoproduct.hasBinaryCoproduct 
+theorem IsBinaryCoproduct.hasBinaryCoproduct
     (h : IsBinaryCoproduct inl inr)
     : HasBinaryCoproduct X Y :=
   ⟨⟨{ cocone := BinaryCofan.mk inl inr, isColimit := h }⟩⟩
+
+variable {inl inr}
+
+def IsBinaryCoproduct.desc
+    (h : IsBinaryCoproduct inl inr)
+    {T : 𝓒}
+    (f : X ⟶ T)
+    (g : Y ⟶ T)
+    : P ⟶ T :=
+  IsColimit.desc h { pt := T, ι := mapPair f g }
+
+@[simp]
+theorem IsBinaryCoproduct.inl_desc
+    (h : IsBinaryCoproduct inl inr)
+    (f : X ⟶ T)
+    (g : Y ⟶ T)
+    : inl ≫ h.desc f g = f :=
+  h.fac { pt := T, ι := mapPair f g } (.mk .left)
+
+@[simp]
+theorem IsBinaryCoproduct.inr_desc
+    (h : IsBinaryCoproduct inl inr)
+    (f : X ⟶ T)
+    (g : Y ⟶ T)
+    : inr ≫ h.desc f g = g :=
+  h.fac { pt := T, ι := mapPair f g } (.mk .right)
+
+theorem IsBinaryCoproduct.uniq
+    (h : IsBinaryCoproduct inl inr)
+    (f : X ⟶ T)
+    (g : Y ⟶ T)
+    (m : P ⟶ T)
+    (hf : inl ≫ m = f)
+    (hg : inr ≫ m = g)
+    : m = h.desc f g :=
+  IsColimit.uniq h { pt := T, ι := mapPair f g } m fun
+    | .mk .left => hf
+    | .mk .right => hg
+
+def IsBinaryCoproduct.hom_ext
+    (h : IsBinaryCoproduct inl inr)
+    {f g : P ⟶ T}
+    (hl : inl ≫ f = inl ≫ g)
+    (hr : inr ≫ f = inr ≫ g)
+    : f = g :=
+  BinaryCofan.IsColimit.hom_ext h hl hr
+
+@[simp]
+theorem IsBinaryCoproduct.inl_inr_desc
+    (h : IsBinaryCoproduct inl inr)
+    : h.desc inl inr = 𝟙 _ :=
+  h.hom_ext
+    ((h.inl_desc _ _).trans (Category.comp_id _).symm)
+    ((h.inr_desc _ _).trans (Category.comp_id _).symm)
+
+@[simp]
+theorem IsBinaryCoproduct.desc_comp
+    (h : IsBinaryCoproduct inl inr)
+    (f : X ⟶ T)
+    (g : Y ⟶ T)
+    (v : T ⟶ V)
+    : h.desc f g ≫ v = h.desc (f ≫ v) (g ≫ v) :=
+  h.hom_ext
+    (by rw [← Category.assoc]; simp)
+    (by rw [← Category.assoc]; simp)
+
+def IsBinaryCoproduct.iso
+    {X Y P₁ P₂ : 𝓒}
+    {inl₁ : X ⟶ P₁} {inr₁ : Y ⟶ P₁}
+    {inl₂ : X ⟶ P₂} {inr₂ : Y ⟶ P₂}
+    (h₁ : IsBinaryCoproduct inl₁ inr₁)
+    (h₂ : IsBinaryCoproduct inl₂ inr₂)
+    : P₁ ≅ P₂ where
+  hom := h₁.desc inl₂ inr₂
+  inv := h₂.desc inl₁ inr₁
+  hom_inv_id := hom_ext h₁ (by simp) (by simp)
+  inv_hom_id := hom_ext h₂ (by simp) (by simp)
 
 noncomputable def coproductIsBinaryCoproduct [HasBinaryCoproduct X Y]
     : IsBinaryCoproduct (coprod.inl : X ⟶ X ⨿ Y) coprod.inr :=
