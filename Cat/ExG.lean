@@ -580,6 +580,14 @@ theorem sigma_is_permunation
 
 end sigma_is_permunation
 
+-- We need this slighly cute lemma for the end of the proof
+theorem Multiset.sum_sing_map
+    (v : List A)
+    : (List.map (fun X_1 ↦ {X_1}) v).sum = Multiset.ofList v := by
+  induction v
+  · rfl
+  case cons ih => simp [ih]
+
 -- With that out of the way I will continue through the next sections
 
 structure CommStarAlg A where
@@ -590,6 +598,8 @@ structure CommStarAlg A where
 
   -- This is the changed definition because of setoid nonsense
   apply_sig : ∀ l₁ l₂, l₁.Perm l₂ → α l₁ = α l₂
+
+-- I believe there exists a unique isomorphism between CommStarAlg and Abel
 
 structure CommStarHom (a : CommStarAlg A) (b : CommStarAlg B) where
   h : A → B
@@ -638,11 +648,15 @@ instance : Category (CommStarAlgAt X) where
   -- comp_id, id_comp, and assoc are proven for free.
   -- and as they seem to be given in the defn I wont bother redoing it by hand.
 
--- We define a function
+-- We define a function toMultisetFn,
+-- this follows exactly from the defn of the C*Alg(X)
+-- This is also where the fact that i picked using List.Perm over σ comes in.
+-- All the work done above can be justified by simply writing this function.
 def toMultisetFn (Y : CommStarAlgAt X)
     : Multiset Y.A → Y.A :=
   Quotient.lift Y.a.α Y.a.apply_sig
 
+-- The function distributes in interesting ways.
 theorem toMultisetFn_distrib
     {Y : CommStarAlgAt X}
     {a b : Multiset _}
@@ -651,65 +665,113 @@ theorem toMultisetFn_distrib
   induction a using Quotient.ind
   induction b using Quotient.ind
   rename_i a b
+  -- Here we can see that the definition is equivilent to quite a nice expression.
   change Y.a.α (a ++ b) = (Y.a.α ∘ List.map Y.a.α) [a, b]
+  -- The proof follows from Y.A.map_flat
   rw [Y.a.map_flat]
+  -- Now we are RTP: Y.a.α (a ++ b) = (Y.a.α ∘ List.flatten) [a, b]
+  -- I have decided not to bore you with this as the proof is trivial on paper.
   simp
+
+-- This is also a general lemma which will be very useful later on.
 theorem distrub_tail
     {Y : CommStarAlgAt X}
     {a b}
     : Y.a.α [a, Y.a.α b] = Y.a.α (a :: b) := by
   change Y.a.α [id a, Y.a.α b] = Y.a.α (a :: b)
+  -- It follows by using sing
   rw [←Y.a.sing]
+  -- then some rearranging gives us.
   change (Y.a.α ∘ List.map Y.a.α) [List.singleton a, b] = Y.a.α (a :: b)
+  -- which we can solve using map_flat
   rw [Y.a.map_flat]
+  -- We are now RTP: (Y.a.α ∘ List.flatten) [List.singleton a, b] = Y.a.α (a :: b)
+  -- This also has nothing to do with category theory so I'll just solve it
   simp [List.singleton]
 
--- We note that the object that has the property we look for would be analogous
+-- Here we can finally define the initial object
+-- It is analgous how we made the free monoid from a list,
+-- we make the free abelian monoid from a Multiset.
+-- Multisets are lists quotient by the permutation setoid (List.Perm).
+-- Multisets are both functors and (abelian) monoids,
+-- which are the two structures we will use in this proof.
+
 def init : CommStarAlgAt X where
   A := Multiset X
   a := {
+    -- The monoid on Multisets is concatonation lifted from Lists.
+    -- We then pick List.sum as our function as it has the property we want
+    --   List.sum [a,b,c] = a + b + c = ⟦a ++ b ++ c⟧ .
+    -- The square brackets here are refering to the content of the quotient.
     α := List.sum
     sing := funext fun v => by simp [List.singleton, List.sum]
     map_flat := funext fun v => by simp
+    -- We get apply_sig for free as multisets are abelian.
     apply_sig l₁ l₂ := List.Perm.sum_eq
   }
+  -- f is actually just sing lifted which is cute
   f := fun X => {X}
+
+-- To prove an object is initial it suffices to:
+-- Construct a morphism from the ⊥ to any other object,
+-- and to show this morphism is unique.
+-- The function Limits.IsInitial.ofUniqueHom does exactly this:
+
+/--
+info: CategoryTheory.Limits.IsInitial.ofUniqueHom.{v₁, u₁} {C : Type u₁} [Category.{v₁, u₁} C] {X : C} (h : (Y : C) → X ⟶ Y)
+  (uniq : ∀ (Y : C) (m : X ⟶ Y), m = h Y) : Limits.IsInitial X
+-/
+#guard_msgs in
+#check Limits.IsInitial.ofUniqueHom 
 
 def isInit X : Limits.IsInitial (CommStarAlgAt.init (X := X)) :=
   .ofUniqueHom
     (fun Y => {
-      h (m : Multiset X) :=
-        Y.toMultisetFn (Multiset.map Y.f m)
+      -- We construct the morphism using the toMultisetFn function.
+      -- This distributes with Y.f nicely as shown above.
+      h (m : Multiset X) := Y.toMultisetFn (Multiset.map Y.f m)
+      -- We are now RTP : (Y.a.α ∘ List.map fun m ↦ Y.toMultisetFn (Multiset.map Y.f m))
+      --      = (fun m ↦ Y.toMultisetFn (Multiset.map Y.f m)) ∘ init.a.α
+      -- This follows from the distrubution lemmas given above.
       heq := funext fun (v : List (Multiset _)) => by
         dsimp [init]
         induction v
         · rfl
         case cons hd tl ih =>
-          simp
+          simp only [List.map_cons, List.sum_cons, Multiset.map_add]
           rw [toMultisetFn_distrib, ←ih]
           exact distrub_tail.symm
-      hAtEq := by 
-        funext v
+      -- Next we are RTP: (fun m ↦ Y.toMultisetFn (Multiset.map Y.f m)) ∘ init.f = Y.f
+      hAtEq := funext fun v => by
+        -- To show it is unique we can use sing thanks to nice defeqs from lean.
         change (Y.a.α ∘ List.singleton) _= _
         rw [Y.a.sing, id]
     })
-    fun Y ⟨⟨m, hmEq⟩, mhEqAt⟩ => by
-      dsimp [init] at mhEqAt hmEq ⊢
+    fun Y ⟨
+        ⟨
+          m,
+          (hmEq : Y.a.α ∘ List.map m = m ∘ init.a.α)
+        ⟩,
+        (mSigEqf : (m ∘ fun X => ({X} : Multiset _)) = Y.f)
+      ⟩ => by
+      dsimp [init] at mSigEqf hmEq ⊢
       apply (CommStarHomAt.mk.injEq _ _ _ _).mpr
       apply (CommStarHom.mk.injEq _ _ _ _).mpr
       funext v
+      -- Shwoing that the function is unique is quite nice to do actually
+      -- We are RTP: m v = Y.toMultisetFn (Multiset.map Y.f v)
       induction v using Quotient.ind
       rename_i v
+
+      clear *-mSigEqf hmEq
+
       change m _ = Y.a.α (List.map Y.f v)
-      rw [←mhEqAt, ←List.map_map]
+      rw [←mSigEqf, ←List.map_map]
       change _ = (Y.a.α ∘ List.map m) (List.map _ v)
       rw [hmEq]
       congr 1
       clear *-
-      induction v
-      · rfl
-      case cons ih =>
-        simp [←ih]
+      exact (Multiset.sum_sing_map v).symm
 
 instance {X : Type u} : Limits.HasInitial (CommStarAlgAt.{u, u} X) :=
   Limits.IsInitial.hasInitial (isInit X)
