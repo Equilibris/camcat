@@ -18,6 +18,8 @@ universe u
 
 namespace CategoryTheory
 
+section Ex1
+
 -- We consider some general category 𝓒
 variable {𝓒 : Type u} [Category 𝓒]
 
@@ -26,8 +28,6 @@ variable {X Y Z A B C U V W L : 𝓒}
 
 -- Along with some morphisms
 variable {f g : X ⟶ Y}
-
-section Ex1
 
 -- A morphism f : X ⟶ Y is a monomorphism if it is left-cancellabe.
 -- Here is the definition provided by mathlib.
@@ -338,7 +338,24 @@ variable {n : Nat} {A B : Type u}
 -- This question discusses vectors Aⁿ of the form.
 #check Fin n → A
 -- We can show A* is equivilent to lists
--- Therefore I deam it justifiable to use List A in place of the function definition
+-- Therefore I deam it justifiable to use List A in place of the Sigma (Fin · → A) definition.
+
+instance : Equiv ((n : Nat) × (Fin n → A)) (List A) where
+  toFun  := fun ⟨_, v⟩ => List.ofFn v
+  invFun l := ⟨l.length, l.get⟩
+  left_inv := by
+    rintro ⟨l, f⟩
+    ext
+    · simp only [List.length_ofFn]
+    · simp only
+      apply Function.hfunext
+      · simp
+      · intro a a' heq
+        simp only [List.get_eq_getElem, List.getElem_ofFn, heq_eq_eq]
+        congr
+        simp
+  right_inv l := by simp
+
 
 -- The expected monoid is defined.
 /-- info: instMonoidList_cat -/
@@ -395,22 +412,9 @@ List.Perm.trans : ∀ {α : Type u} {l₁ l₂ l₃ : List α}, l₁.Perm l₂ �
 
 section sigma_is_permunation
 
-instance : Equiv ((n : Nat) × (Fin n → A)) (List A) where
-  toFun  := fun ⟨_, v⟩ => List.ofFn v
-  invFun l := ⟨l.length, l.get⟩
-  left_inv := by
-    rintro ⟨l, f⟩
-    ext
-    · simp only [List.length_ofFn]
-    · simp only
-      apply Function.hfunext
-      · simp
-      · intro a a' heq
-        simp only [List.get_eq_getElem, List.getElem_ofFn, heq_eq_eq]
-        congr
-        simp
-  right_inv l := by simp
-
+-- Any function along with a proof that it is bijective,
+-- is equivilent to an equivelence from and onto iteself (A ≃ A).
+-- In lean we alias A ≃ A as Equiv.Perm A
 noncomputable def sigmaBij_equiv_EquivPerm
     : ((f : A → A) ×' Function.Bijective f) ≃ Equiv.Perm A where
   toFun := fun ⟨f, bij⟩ =>
@@ -438,13 +442,15 @@ noncomputable def sigmaBij_equiv_EquivPerm
     have ⟨hl, _⟩ := Classical.choose_spec p
     rw [ha, hl]
 
-noncomputable def σ.isEquivPerm {n} : σ n ≃ Equiv.Perm (Fin n) :=
-  have : σ n ≃ ((f : Fin n → Fin n) ×' Function.Bijective f) := {
-    toFun := fun ⟨f,bij⟩ => ⟨f, bij⟩
-    invFun := fun ⟨f,bij⟩ => ⟨f, bij⟩
-  }
-  this.trans sigmaBij_equiv_EquivPerm
+def σ.unfold : σ n ≃ ((f : Fin n → Fin n) ×' Function.Bijective f) := {
+  toFun := fun ⟨f,bij⟩ => ⟨f, bij⟩
+  invFun := fun ⟨f,bij⟩ => ⟨f, bij⟩
+}
 
+noncomputable def σ.isEquivPerm {n} : σ n ≃ Equiv.Perm (Fin n) :=
+  σ.unfold.trans sigmaBij_equiv_EquivPerm
+
+-- supprisingly easy theorem using the a proof from mathlib.
 theorem _root_.List.apply_sig_Perm {l : List A} {s : σ _} : List.Perm (l.apply_sig s) l := by
   dsimp [List.apply_sig]
   let x := σ.isEquivPerm.toFun s
@@ -454,7 +460,7 @@ theorem _root_.List.apply_sig_Perm {l : List A} {s : σ _} : List.Perm (l.apply_
   rw [List.ofFn_get] at eq
   exact eq
 
--- This is in mathlib, I actually pushed it there 
+-- This is in mathlib, I actually pushed it there
 -- The problem is my mathlib is too out of date so i copied it here.
 theorem dcongr_heq.{v}
     {α₁ α₂ : Sort u}
@@ -471,6 +477,7 @@ theorem dcongr_heq.{v}
   rfl
 
 -- This proof could be made constructive by transforming Perm to reside in Type
+-- This is by far the most gruntworky section component of the proof.
 theorem _root_.List.Perm_apply_sig : {l₁ l₂ : List A} → l₁.Perm l₂ → ∃ s, l₁.apply_sig s = l₂ := by
   intro l₁ l₂ perm
   induction perm
@@ -556,7 +563,7 @@ theorem _root_.List.Perm_apply_sig : {l₁ l₂ : List A} → l₁.Perm l₂ →
         refine ⟨by simp_all, ?_⟩
         change (_ ∘ f) ∘ _ ≍ _
         rw! [hEqf'.2, ←hEqg'.2]
-        simp
+        simp only [heq_cast_iff_heq]
         apply dcongr_heq
         · exact eqRec_heq_self (motive := fun x h ↦ Fin x → Fin x) g (Eq.symm this)
         · simp_all
@@ -568,6 +575,7 @@ theorem _root_.List.Perm_apply_sig : {l₁ l₂ : List A} → l₁.Perm l₂ →
         congr!
     ⟩
 
+-- Finally we can show my notion is equivilent to the one given in the task
 theorem sigma_is_permunation
     {α : List A → A}
     : (∀ l : List A, ∀ σ : σ l.length, α l = α (l.apply_sig σ))
@@ -662,32 +670,24 @@ theorem toMultisetFn_distrib
     {a b : Multiset _}
     : Y.toMultisetFn (a + b)
     = Y.a.α [Y.toMultisetFn a, Y.toMultisetFn b] := by
-  induction a using Quotient.ind
-  induction b using Quotient.ind
-  rename_i a b
-  -- Here we can see that the definition is equivilent to quite a nice expression.
-  change Y.a.α (a ++ b) = (Y.a.α ∘ List.map Y.a.α) [a, b]
-  -- The proof follows from Y.A.map_flat
-  rw [Y.a.map_flat]
-  -- Now we are RTP: Y.a.α (a ++ b) = (Y.a.α ∘ List.flatten) [a, b]
-  -- I have decided not to bore you with this as the proof is trivial on paper.
-  simp
+  induction a using Quotient.ind; induction b using Quotient.ind; rename_i a b
+  symm; calc
+    (Y.a.α ∘ List.map Y.a.α) [a, b]
+      = (Y.a.α ∘ List.flatten) [a, b] := by rw [Y.a.map_flat]
+    _ = Y.a.α (a ++ b)                := by simp
 
 -- This is also a general lemma which will be very useful later on.
 theorem distrub_tail
     {Y : CommStarAlgAt X}
     {a b}
-    : Y.a.α [a, Y.a.α b] = Y.a.α (a :: b) := by
-  change Y.a.α [id a, Y.a.α b] = Y.a.α (a :: b)
-  -- It follows by using sing
-  rw [←Y.a.sing]
-  -- then some rearranging gives us.
-  change (Y.a.α ∘ List.map Y.a.α) [List.singleton a, b] = Y.a.α (a :: b)
-  -- which we can solve using map_flat
-  rw [Y.a.map_flat]
-  -- We are now RTP: (Y.a.α ∘ List.flatten) [List.singleton a, b] = Y.a.α (a :: b)
-  -- This also has nothing to do with category theory so I'll just solve it
-  simp [List.singleton]
+    : Y.a.α [a, Y.a.α b] = Y.a.α (a :: b) := calc
+    Y.a.α [id a, Y.a.α b]
+      = Y.a.α [(Y.a.α ∘ .singleton) a, Y.a.α b] := by rw [←Y.a.sing]
+    _ = (Y.a.α ∘ .map Y.a.α) [.singleton a, b]  := rfl
+    _ = (Y.a.α ∘ .flatten) [.singleton a, b]    := by rw [Y.a.map_flat]
+    _ = Y.a.α (a :: b)                          := by simp [List.singleton]
+  -- The last step doesnt really have anything to do with category theory,
+  -- so I'll just let `simp` solve it
 
 -- Here we can finally define the initial object
 -- It is analgous how we made the free monoid from a list,
@@ -716,6 +716,7 @@ def init : CommStarAlgAt X where
 -- Construct a morphism from the ⊥ to any other object,
 -- and to show this morphism is unique.
 -- The function Limits.IsInitial.ofUniqueHom does exactly this:
+-- (NOTE: This isnt definition because initials are given as Limits)
 
 /--
 info: CategoryTheory.Limits.IsInitial.ofUniqueHom.{v₁, u₁} {C : Type u₁} [Category.{v₁, u₁} C] {X : C} (h : (Y : C) → X ⟶ Y)
@@ -755,23 +756,30 @@ def isInit X : Limits.IsInitial (CommStarAlgAt.init (X := X)) :=
         (mSigEqf : (m ∘ fun X => ({X} : Multiset _)) = Y.f)
       ⟩ => by
       dsimp [init] at mSigEqf hmEq ⊢
-      apply (CommStarHomAt.mk.injEq _ _ _ _).mpr
-      apply (CommStarHom.mk.injEq _ _ _ _).mpr
-      funext v
+      refine (CommStarHomAt.mk.injEq _ _ _ _).mpr 
+        <| (CommStarHom.mk.injEq _ _ _ _).mpr 
+        <| funext fun v => Eq.symm ?_
       -- Shwoing that the function is unique is quite nice to do actually
       -- We are RTP: m v = Y.toMultisetFn (Multiset.map Y.f v)
       induction v using Quotient.ind
       rename_i v
+      calc
+        Y.a.α (List.map Y.f v)
+          = Y.a.α (List.map Y.f v)                         := rfl
+        _ = Y.a.α (List.map (m ∘ _) v)                     := by rw [mSigEqf]
+        _ = Y.a.α (List.map m (List.map _ v))              := by rw [List.map_map]
+        _ = (Y.a.α ∘ List.map m) (List.map _ v)            := rfl
+        _ = (m ∘ _) (List.map _ v)                         := by rw [hmEq]
+        _ = m (v.map (fun X_1 ↦ ({X_1} : Multiset _))).sum := by rfl
+        _ = m (Multiset.ofList v)                          := by rw [Multiset.sum_sing_map v]
+        _ = m ⟦v⟧                                          := rfl
 
-      clear *-mSigEqf hmEq
-
-      change m _ = Y.a.α (List.map Y.f v)
-      rw [←mSigEqf, ←List.map_map]
-      change _ = (Y.a.α ∘ List.map m) (List.map _ v)
-      rw [hmEq]
-      congr 1
-      clear *-
-      exact (Multiset.sum_sing_map v).symm
+-- Sanity check the proof doesnt depend on sorryAx.
+/--
+info: 'CategoryTheory.CommStarAlgAt.isInit' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms isInit
 
 instance {X : Type u} : Limits.HasInitial (CommStarAlgAt.{u, u} X) :=
   Limits.IsInitial.hasInitial (isInit X)
@@ -779,6 +787,33 @@ instance {X : Type u} : Limits.HasInitial (CommStarAlgAt.{u, u} X) :=
 end CommStarAlgAt
 
 end Ex2
+
+section Ex3
+
+variable {A B : Type u}
+
+structure Ent (A B : Type u) where
+  rel : List A → B → Prop
+  closed : ∀ b l₁, rel l₁ b → ∀ l₂, l₁.Perm l₂ → rel l₂ b
+
+namespace Ent
+
+variable (R : A → B → Prop)
+
+inductive liftR.Rel : List A → B → Prop
+  | lift {a b} : R a b → Rel [a] b
+
+def liftR : Ent A B where
+  rel := liftR.Rel R
+  closed := fun 
+    | b, [a], .lift rab, l, p₁ => by
+      simp only [List.singleton_perm] at p₁
+
+
+
+end Ent
+
+end Ex3
 
 end CategoryTheory
 
