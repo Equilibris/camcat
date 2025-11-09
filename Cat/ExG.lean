@@ -10,6 +10,7 @@ import Mathlib.CategoryTheory.Category.Cat.Terminal
 import Mathlib.CategoryTheory.Iso
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 import Mathlib.Logic.Basic
+import Mathlib.Logic.Relation
 import Cat.L1
 import Cat.L2Live
 import Cat.Product
@@ -790,13 +791,22 @@ end Ex2
 
 section Ex3
 
-variable {A B : Type u}
+variable {A B C : Type u}
 
 structure Ent (A B : Type u) where
   rel : List A → B → Prop
   closed : ∀ b l₁, rel l₁ b → ∀ l₂, l₁.Perm l₂ → rel l₂ b
 
 namespace Ent
+
+instance : CoeFun (Ent A B) (fun _ => List A → B → Prop) := ⟨Ent.rel⟩
+
+@[ext]
+theorem ext {E F : Ent A B} (h : ∀ a b, E a b ↔ F a b) : E = F :=
+  match E, F with
+  | ⟨_, _⟩, ⟨_, _⟩ =>
+    (Ent.mk.injEq _ _ _ _).mpr
+    <| funext fun a => funext fun b => propext (h a b)
 
 variable (R : A → B → Prop)
 
@@ -806,12 +816,56 @@ inductive liftR.Rel : List A → B → Prop
 def liftR : Ent A B where
   rel := liftR.Rel R
   closed := fun 
-    | b, [a], .lift rab, l, p₁ => by
-      simp only [List.singleton_perm] at p₁
+    | b, [a], .lift rab, _, p₁ => by
+      -- Permutation of singletons are trivial.
+      obtain rfl := List.singleton_perm.mp p₁
+      -- we are now RTP: liftR.Rel R [a] b
+      exact .lift rab
 
+def Ax A : Ent A A := liftR (· = ·)
 
+-- The alternative is a sublist structure,
+-- This might be more expressive but also harder
+-- NOTE: This has the opposite order of how the question requests it.
+--       This is done to conform with how lean does relational composition.
+
+-- The question also contains:
+-- > Remember to argue that if E ⊆ A* × B is an entailment from A to B and
+-- > F ⊆ B* × C is an entailment from 𝐵 to 𝐶 then their composition
+-- > F ⊛ E ⊆ A* × C is an entailment from A to C.
+-- This follows from the type signatures for free because of working in a proof assistant.
+-- Therefore I will assume I have argued for this.
+def comp (E : Ent A B) (F : Ent B C) : Ent A C where
+  rel ls c := ∃ l', F l' c ∧ ∀ b ∈ l', E ls b
+  closed := fun _ _ ⟨l', hl'b, fax⟩ l₂ hperm =>
+    ⟨l', hl'b, fun b bmem => E.closed _ _ (fax b bmem) l₂ hperm⟩
+
+infixr:100 " ⊛ " => comp
+
+theorem comp_respects_comp
+    (R : A → B → Prop)
+    (S : B → C → Prop)
+    : liftR (Relation.Comp R S) = liftR R ⊛ liftR S :=
+  Ent.ext fun a b => ⟨
+    fun ⟨w, haw, hwb⟩ => by
+      refine ⟨[w], .lift hwb, fun b bmem => ?_⟩
+      obtain rfl := List.mem_singleton.mp bmem
+      exact .lift haw,
+    fun ⟨[w], .lift hwb, haw⟩ => by
+      rcases haw w (List.mem_singleton.mpr rfl) with ⟨haw⟩
+      refine .lift ⟨w, haw, hwb⟩,
+  ⟩
 
 end Ent
+
+@[pp_with_univ]
+def EType := Type u
+
+instance : Category EType where
+  Hom   := Ent
+  comp  := Ent.comp
+  id    := Ent.Ax
+
 
 end Ex3
 
