@@ -7,13 +7,8 @@ namespace List
 
 variable {A : Type u}
 
-inductive Subpart (n : Nat) : List A → List (List A) → Prop
-  | nil : Subpart n [] (List.replicate n [])
-  | consN {hd tl tl'}
-    (idx : Nat)
-    (h : idx < n)
-    (rest : Subpart n tl tl')
-    : Subpart n (hd :: tl) (tl'.modify idx (hd :: ·))
+structure Subpart (n : Nat) (a : List A) (b : List (List A)) : Prop where
+   
 
 namespace Subpart
 

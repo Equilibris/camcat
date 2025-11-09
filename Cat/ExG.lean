@@ -810,8 +810,14 @@ theorem ext {E F : Ent A B} (h : ∀ a b, E a b ↔ F a b) : E = F :=
 
 variable (R : A → B → Prop)
 
+@[grind]
 inductive liftR.Rel : List A → B → Prop
   | lift {a b} : R a b → Rel [a] b
+
+@[simp, grind]
+theorem liftR.Rel.iff : liftR.Rel R = fun a b => ∃ w, a = [w] ∧ R w b := by
+  funext a b
+  grind
 
 def liftR : Ent A B where
   rel := liftR.Rel R
@@ -823,6 +829,10 @@ def liftR : Ent A B where
       exact .lift rab
 
 def Ax A : Ent A A := liftR (· = ·)
+
+structure Sublist (n : Nat) (a : List A) (b : List (List A)) where
+  b_prod : a.Perm b.prod
+  b_length : b.length = n
 
 -- The alternative is a sublist structure,
 -- This might be more expressive but also harder
@@ -836,10 +846,13 @@ def Ax A : Ent A A := liftR (· = ·)
 -- This follows from the type signatures for free because of working in a proof assistant.
 -- Therefore I will assume I have argued for this.
 def comp (E : Ent A B) (F : Ent B C) : Ent A C where
-  rel ls c := ∃ l', F l' c ∧ ∀ b ∈ l', E ls b
-  closed := fun _ _ ⟨l', hl'b, fax⟩ l₂ hperm =>
-    ⟨l', hl'b, fun b bmem => E.closed _ _ (fax b bmem) l₂ hperm⟩
+  rel ls c := ∃ lpart : List (List A), ∃ l',
+    ls.Perm lpart.flatten ∧
+    F l' c ∧ List.Forall₂ E.rel lpart l'
+  closed := fun _c _ls ⟨lpart, l', lsPermProd, fRelLpart, fa2⟩ _l₂ hperm =>
+    ⟨lpart, l', List.Perm.trans hperm.symm lsPermProd, fRelLpart, fa2⟩
 
+-- Type \circledast
 infixr:100 " ⊛ " => comp
 
 theorem comp_respects_comp
@@ -847,14 +860,76 @@ theorem comp_respects_comp
     (S : B → C → Prop)
     : liftR (Relation.Comp R S) = liftR R ⊛ liftR S :=
   Ent.ext fun a b => ⟨
-    fun ⟨w, haw, hwb⟩ => by
-      refine ⟨[w], .lift hwb, fun b bmem => ?_⟩
-      obtain rfl := List.mem_singleton.mp bmem
-      exact .lift haw,
-    fun ⟨[w], .lift hwb, haw⟩ => by
-      rcases haw w (List.mem_singleton.mpr rfl) with ⟨haw⟩
-      refine .lift ⟨w, haw, hwb⟩,
+    fun ⟨w, haw, hwb⟩ => ⟨
+      [[_]],
+      [w],
+      .refl _,
+      .lift hwb,
+      .cons (.lift haw) .nil
+    ⟩,
+    fun ⟨[w], [_], perm, .lift hwb, (.cons haw .nil)⟩ => by
+      rcases haw with ⟨haw⟩
+      obtain rfl := List.perm_singleton.mp perm
+      refine .lift ⟨_, haw, hwb⟩,
   ⟩
+
+@[simp]
+theorem map_singleton_flatten : {a : List A} → (List.map List.singleton a).flatten = a
+  | [] => rfl
+  | hd :: tl => by
+    change hd :: (List.map List.singleton tl).flatten = hd :: tl
+    rw [map_singleton_flatten]
+
+theorem comp_Ax (E : Ent A B) : E ⊛ Ax B = E := by
+  ext a b
+  constructor
+  · rintro ⟨lperm, l', aperml, ⟨rfl⟩, (_|⟨a, hnil⟩)⟩
+    obtain rfl := List.forall₂_nil_right_iff.mp hnil
+    simp only [List.flatten_cons, List.flatten_nil, List.append_nil] at aperml
+    exact E.closed _ _ a _ aperml.symm
+  · intro h
+    refine ⟨[a], [b], by simp, .lift rfl, .cons h .nil⟩
+
+theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
+  ext a b
+  constructor
+  · rintro ⟨lperm, l', aperml, hl, hr⟩
+    simp only [Ax, liftR, liftR.Rel.iff, exists_eq_right] at hr
+    have := (List.forall₂_map_right_iff (f := List.singleton)).mpr hr
+    rw [List.forall₂_eq_eq_eq] at this
+    subst this
+    simp at aperml
+    exact E.closed b l' hl a (List.Perm.symm aperml)
+  · intro h
+    refine ⟨List.map List.singleton a, a, ?_, h, ?_⟩
+    · simp
+    · simp only [Ax, liftR, liftR.Rel.iff, exists_eq_right, List.forall₂_map_left_iff,
+      List.forall₂_same]
+      intro _ _
+      rfl
+
+theorem comp_assoc {W X Y Z} (f : Ent W X) (g : Ent X Y) (h : Ent Y Z)
+    : (f ⊛ g) ⊛ h = f ⊛ g ⊛ h := by
+  ext a b
+  constructor
+  · rintro ⟨lwp, lw', wperm, rel, fa⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    · sorry
+    · sorry
+    · sorry
+    · sorry
+    · sorry
+  · rintro ⟨lwp, lw', wperm, ⟨lwp', lw'', wperm', rel, fa'⟩, fa⟩
+    refine ⟨lwp, lw'', by simpa, rel, ?_⟩
+    have fa := List.forall₂_iff_get.mp fa
+    have fa' := List.forall₂_iff_get.mp fa'
+    apply List.forall₂_iff_get.mpr ⟨?_, ?_⟩
+    · 
+      have := List.Perm.length_eq wperm
+      have := List.Perm.length_eq wperm'
+      sorry
+
+    · sorry
 
 end Ent
 
@@ -865,6 +940,9 @@ instance : Category EType where
   Hom   := Ent
   comp  := Ent.comp
   id    := Ent.Ax
+  id_comp := Ent.Ax_comp
+  comp_id := Ent.comp_Ax
+  assoc := sorry
 
 
 end Ex3
