@@ -15,7 +15,7 @@ import Cat.L1
 import Cat.L2Live
 import Cat.Product
 
-universe u
+universe u v
 
 namespace CategoryTheory
 
@@ -463,7 +463,7 @@ theorem _root_.List.apply_sig_Perm {l : List A} {s : σ _} : List.Perm (l.apply_
 
 -- This is in mathlib, I actually pushed it there
 -- The problem is my mathlib is too out of date so i copied it here.
-theorem dcongr_heq.{v}
+theorem dcongr_heq
     {α₁ α₂ : Sort u}
     {β₁ : α₁ → Sort v} {β₂ : α₂ → Sort v}
     {f₁ : ∀ a, β₁ a} {f₂ : ∀ a, β₂ a}
@@ -793,46 +793,22 @@ section Ex3
 
 variable {A B C : Type u}
 
-structure Ent (A B : Type u) where
-  rel : List A → B → Prop
-  closed : ∀ b l₁, rel l₁ b → ∀ l₂, l₁.Perm l₂ → rel l₂ b
+def Ent (A B : Type u) := Multiset A → B → Prop
 
 namespace Ent
-
-instance : CoeFun (Ent A B) (fun _ => List A → B → Prop) := ⟨Ent.rel⟩
-
-@[ext]
-theorem ext {E F : Ent A B} (h : ∀ a b, E a b ↔ F a b) : E = F :=
-  match E, F with
-  | ⟨_, _⟩, ⟨_, _⟩ =>
-    (Ent.mk.injEq _ _ _ _).mpr
-    <| funext fun a => funext fun b => propext (h a b)
 
 variable (R : A → B → Prop)
 
 @[grind]
-inductive liftR.Rel : List A → B → Prop
-  | lift {a b} : R a b → Rel [a] b
+inductive LiftR : Multiset A → B → Prop
+  | lift {a b} : R a b → LiftR {a} b
 
 @[simp, grind]
-theorem liftR.Rel.iff : liftR.Rel R = fun a b => ∃ w, a = [w] ∧ R w b := by
+theorem LiftR.iff : LiftR R = fun a b => ∃ w, a = {w} ∧ R w b := by
   funext a b
   grind
 
-def liftR : Ent A B where
-  rel := liftR.Rel R
-  closed := fun 
-    | b, [a], .lift rab, _, p₁ => by
-      -- Permutation of singletons are trivial.
-      obtain rfl := List.singleton_perm.mp p₁
-      -- we are now RTP: liftR.Rel R [a] b
-      exact .lift rab
-
-def Ax A : Ent A A := liftR (· = ·)
-
-structure Sublist (n : Nat) (a : List A) (b : List (List A)) where
-  b_prod : a.Perm b.prod
-  b_length : b.length = n
+def Ax A : Ent A A := LiftR (· = ·)
 
 -- The alternative is a sublist structure,
 -- This might be more expressive but also harder
@@ -845,12 +821,11 @@ structure Sublist (n : Nat) (a : List A) (b : List (List A)) where
 -- > F ⊛ E ⊆ A* × C is an entailment from A to C.
 -- This follows from the type signatures for free because of working in a proof assistant.
 -- Therefore I will assume I have argued for this.
-def comp (E : Ent A B) (F : Ent B C) : Ent A C where
-  rel ls c := ∃ lpart : List (List A), ∃ l',
-    ls.Perm lpart.flatten ∧
-    F l' c ∧ List.Forall₂ E.rel lpart l'
-  closed := fun _c _ls ⟨lpart, l', lsPermProd, fRelLpart, fa2⟩ _l₂ hperm =>
-    ⟨lpart, l', List.Perm.trans hperm.symm lsPermProd, fRelLpart, fa2⟩
+def comp (E : Ent A B) (F : Ent B C) : Ent A C :=
+  fun ls c => ∃ lpart : Multiset ((Multiset A) × B),
+    F (lpart.map _root_.Prod.snd) c
+    ∧ ls = (lpart.map _root_.Prod.fst).sum
+    ∧ ∀ v ∈ lpart, E v.fst v.snd
 
 -- Type \circledast
 infixr:100 " ⊛ " => comp
@@ -858,63 +833,112 @@ infixr:100 " ⊛ " => comp
 theorem comp_respects_comp
     (R : A → B → Prop)
     (S : B → C → Prop)
-    : liftR (Relation.Comp R S) = liftR R ⊛ liftR S :=
-  Ent.ext fun a b => ⟨
-    fun ⟨w, haw, hwb⟩ => ⟨
-      [[_]],
-      [w],
-      .refl _,
-      .lift hwb,
-      .cons (.lift haw) .nil
-    ⟩,
-    fun ⟨[w], [_], perm, .lift hwb, (.cons haw .nil)⟩ => by
-      rcases haw with ⟨haw⟩
-      obtain rfl := List.perm_singleton.mp perm
-      refine .lift ⟨_, haw, hwb⟩,
-  ⟩
+    : LiftR (Relation.Comp R S) = LiftR R ⊛ LiftR S := by
+  funext a b
+  simp [comp, Relation.Comp]
+  constructor
+  · rintro ⟨w, rfl, w', rww', sw'b⟩
+    use { ⟨{w}, w'⟩ }
+    simp_all
+  · rintro ⟨w, ⟨w', weqw', sw'b⟩, rfl, fa⟩
+    simp only [Multiset.map_eq_singleton, Prod.exists, exists_eq_right] at weqw'
+    rcases weqw' with ⟨w, rfl⟩
+    simp only [Multiset.mem_singleton, Prod.mk.injEq, and_imp, forall_eq_apply_imp_iff, forall_eq,
+      Multiset.map_singleton, Multiset.sum_singleton] at fa ⊢
+    rcases fa with ⟨w, rfl, rww'⟩
+    refine ⟨w, rfl, ⟨_, rww', sw'b⟩⟩
 
 @[simp]
-theorem map_singleton_flatten : {a : List A} → (List.map List.singleton a).flatten = a
-  | [] => rfl
-  | hd :: tl => by
-    change hd :: (List.map List.singleton tl).flatten = hd :: tl
-    rw [map_singleton_flatten]
+theorem map_singleton_flatten {a : Multiset A} : (Multiset.map ({·}) a).sum = a := by
+  induction a using Quotient.ind
+  case a a =>
+  induction a
+  · rfl
+  · simp_all
 
 theorem comp_Ax (E : Ent A B) : E ⊛ Ax B = E := by
-  ext a b
+  funext a b; ext
   constructor
-  · rintro ⟨lperm, l', aperml, ⟨rfl⟩, (_|⟨a, hnil⟩)⟩
-    obtain rfl := List.forall₂_nil_right_iff.mp hnil
-    simp only [List.flatten_cons, List.flatten_nil, List.append_nil] at aperml
-    exact E.closed _ _ a _ aperml.symm
+  · rintro ⟨lperm, eqS, rfl, rel⟩
+    simp only [Ax, LiftR.iff, Multiset.map_eq_singleton, Prod.exists, exists_eq_right] at eqS
+    rcases eqS with ⟨w, rfl⟩
+    simp_all
   · intro h
-    refine ⟨[a], [b], by simp, .lift rfl, .cons h .nil⟩
+    refine ⟨{⟨a,b⟩}, ?_, ?_, ?_⟩
+    <;> simp_all [Ax]
 
 theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
-  ext a b
+  funext a b; ext
   constructor
-  · rintro ⟨lperm, l', aperml, hl, hr⟩
-    simp only [Ax, liftR, liftR.Rel.iff, exists_eq_right] at hr
-    have := (List.forall₂_map_right_iff (f := List.singleton)).mpr hr
-    rw [List.forall₂_eq_eq_eq] at this
-    subst this
-    simp at aperml
-    exact E.closed b l' hl a (List.Perm.symm aperml)
+  · rintro ⟨lperm, eqS, rfl, rel⟩
+    simp [Ax] at rel
+    suffices h : (Multiset.map _root_.Prod.snd lperm) = (Multiset.map _root_.Prod.fst lperm).sum by
+      rw [h] at eqS
+      exact eqS
+    have : (Multiset.map _root_.Prod.fst lperm) =
+          Multiset.map ({·}) (Multiset.map _root_.Prod.snd lperm) := by
+      simp
+      exact Multiset.map_congr rfl fun x ↦ rel x.1 x.2
+    rw [this, map_singleton_flatten]
   · intro h
-    refine ⟨List.map List.singleton a, a, ?_, h, ?_⟩
+    refine ⟨a.map (fun a => ⟨{a}, a⟩), ?_, ?_, ?_⟩
+    · simpa
     · simp
-    · simp only [Ax, liftR, liftR.Rel.iff, exists_eq_right, List.forall₂_map_left_iff,
-      List.forall₂_same]
-      intro _ _
-      rfl
+    · simp [Ax]
+
+-- Really cool, this wasnt in mathlib before
+def Quotient.liftd
+    {α : Sort u} {s : Setoid α} {β : Quotient s → Sort v}
+    (f : (v : α) → β (Quotient.mk s v))
+    (heq : ∀ (a b : α), a ≈ b → f a ≍ f b)
+    (q : Quotient s)
+    : β q :=
+  let res := Quotient.lift
+    (β := (x : Quotient s) ×' β x)
+    (s := s) (fun q => ⟨Quotient.mk s q, f q⟩)
+    (fun a b rel => (PSigma.mk.injEq _ _ _ _).mpr ⟨Quotient.sound rel, heq _ _ rel⟩)
+    q
+  have : res.fst = q := by induction q using Quotient.ind; rfl
+  cast (congr rfl this) res.snd
+
+@[simp]
+theorem Quotient.liftd_mk
+    {α : Sort u} {s : Setoid α} {β : Quotient s → Sort v}
+    (f : (v : α) → β (Quotient.mk s v))
+    (heq : ∀ (a b : α), a ≈ b → f a ≍ f b)
+    (v : α)
+    : Quotient.liftd f heq (.mk s v) = f v :=
+  rfl
+
+def _root_.List.mapWithMem : (l : List A) → (f : (a : A) → a ∈ l → B) → List B
+  | [], _  => []
+  | hd :: tl, f => f hd List.mem_cons_self :: tl.mapWithMem (f · <| List.mem_cons_of_mem hd ·)
+
+def _root_.Multiset.mapWithMem : (l : Multiset A) → (f : (a : A) → a ∈ l → B) → Multiset B := 
+  Quotient.liftd
+    (.mk _ <| List.mapWithMem · ·)
+    fun a b rel => by
+      simp
+      apply Function.hfunext
+      · congr! 2
+        simp only [Multiset.mem_coe, List.Perm.mem_iff rel]
+      intro f g heq
+      simp only [heq_eq_eq, Multiset.coe_eq_coe]
+      induction rel
+      · rfl
+      case cons hd _ _ _ ih =>
+        simp [List.mapWithMem]
+        sorry
+      · sorry
+      · sorry
 
 theorem comp_assoc {W X Y Z} (f : Ent W X) (g : Ent X Y) (h : Ent Y Z)
     : (f ⊛ g) ⊛ h = f ⊛ g ⊛ h := by
-  ext a b
+  funext a b; ext
   constructor
-  · rintro ⟨lwp, lw', wperm, rel, fa⟩
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · sorry
+  · rintro ⟨lwp, wperm, rfl, fa⟩
+    simp [comp] at fa ⊢
+    refine ⟨?_, ?_, ?_, ?_⟩
     · sorry
     · sorry
     · sorry
