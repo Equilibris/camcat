@@ -827,14 +827,20 @@ def Ax A : Ent A A := LiftR (· = ·)
 -- > F ⊛ E ⊆ A* × C is an entailment from A to C.
 -- This follows from the type signatures for free because of working in a proof assistant.
 -- Therefore I will assume I have argued for this.
+
+structure CompObj (E : Ent A B) where
+  la : List A
+  b : B
+  r : E.r la b
+
 def comp (E : Ent A B) (F : Ent B C) : Ent A C where
-  r ls c := ∃ lpart : List (List A × B),
-    F.r (lpart.map _root_.Prod.snd) c
-    ∧ ls.Perm (lpart.map _root_.Prod.fst).flatten
-    ∧ ∀ v ∈ lpart, E.r v.fst v.snd
-  perm l₁ b := by 
-    rintro ⟨lpart, fr, perm, fa⟩ l₂ lperm
-    refine ⟨lpart, fr, lperm.symm.trans perm, fa⟩
+  r ls c := ∃ lpart : List (CompObj E),
+    F.r (lpart.map CompObj.b) c
+    ∧ ls.Perm (lpart.map CompObj.la).flatten
+
+  perm l₁ b := by
+    rintro ⟨lpart, fr, perm⟩ l₂ lperm
+    refine ⟨lpart, fr, lperm.symm.trans perm⟩
 
 -- Type \circledast
 infixr:100 " ⊛ " => comp
@@ -847,16 +853,13 @@ theorem comp_respects_comp
   simp [comp, Relation.Comp]
   constructor
   · rintro ⟨w, rfl, w', rww', sw'b⟩
-    use [([w], w')]
-    simp [rww', sw'b]
-  · rintro ⟨w, ⟨w', ⟨a, rfl⟩, sw'b⟩, perm, fa⟩
-    simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false, and_imp,
-      forall_eq_apply_imp_iff, forall_eq] at fa
-    rcases fa with ⟨a, rfl, raw⟩
+    use [⟨[w], w', _, rfl, rww'⟩]
+    simp [sw'b]
+  · rintro ⟨_, ⟨⟨a, b, ⟨w, rfl, rwb⟩⟩, ⟨a, rfl⟩, swb⟩, perm⟩
     simp only [List.map_cons, List.map_nil, List.flatten_cons, List.flatten_nil, List.append_nil,
       List.perm_singleton] at perm
     subst perm
-    grind only
+    refine ⟨w, rfl, _, rwb, swb⟩
 
 @[simp]
 theorem map_singleton_flatten : {a : List A} → (List.map List.singleton a).flatten = a
@@ -868,36 +871,34 @@ theorem map_singleton_flatten : {a : List A} → (List.map List.singleton a).fla
 theorem comp_Ax (E : Ent A B) : E ⊛ Ax B = E := by
   ext a b
   constructor
-  · rintro ⟨lperm, eqS, perm, rel⟩
+  · rintro ⟨lperm, eqS, perm⟩
     simp [Ax] at eqS
-    rcases eqS with ⟨w, rfl, _⟩
-    simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq, List.map_cons, List.map_nil,
-      List.flatten_cons, List.flatten_nil, List.append_nil] at rel perm
-    exact E.perm w b rel a perm.symm
+    rcases eqS with ⟨w, rfl, rfl⟩
+    simp only [List.map_cons, List.map_nil, List.flatten_cons, List.flatten_nil,
+      List.append_nil] at perm
+    exact E.perm _ _ w.r _ perm.symm
   · intro h
-    refine ⟨[⟨a,b⟩], ?_, ?_, ?_⟩
+    refine ⟨[CompObj.mk a b h], ?_, ?_⟩
     <;> simp_all [Ax]
 
 theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
   ext a b
   constructor
-  · rintro ⟨lperm, eqS, perm, rel⟩
-    simp [Ax] at rel
-    have : (List.map _root_.Prod.fst lperm) =
-          List.map List.singleton (List.map _root_.Prod.snd lperm) := by
-      simp only [List.map_map, List.map_inj_left, Function.comp_apply, Prod.forall]
-      exact rel
+  · rintro ⟨lperm, eqS, perm⟩
+    have : (List.map CompObj.la lperm) =
+          List.map List.singleton (List.map CompObj.b lperm) := by
+      simp only [List.map_map, List.map_inj_left, Function.comp_apply]
+      rintro ⟨_,_, _, rfl, rfl⟩ _; rfl
     rw [this, map_singleton_flatten] at perm
     exact E.perm _ b eqS a perm.symm
   · intro h
-    refine ⟨a.map (fun a => ⟨List.singleton a, a⟩), ?_, ?_, ?_⟩
+    refine ⟨a.map (fun a => ⟨List.singleton a, a, ⟨_, rfl, rfl⟩⟩), ?_, ?_⟩
     · rw [List.map_map]
       unfold Function.comp
       simpa
-    · simp
+    · simp only [List.map_map]
       change a.Perm (List.map List.singleton a).flatten
       rw [map_singleton_flatten]
-    · simp [Ax, List.singleton]
 
 -- Really cool, this wasnt in mathlib before
 def Quotient.liftd
@@ -923,47 +924,36 @@ theorem Quotient.liftd_mk
     : Quotient.liftd f heq (.mk s v) = f v :=
   rfl
 
-noncomputable def choose_Forall {ls : List A} {P : A → B → Prop}
-    (h : List.Forall (fun v => ∃ z : B, P v z) ls) : List B :=
-  match ls with
-  | [] => []
-  | _ :: [] => [Classical.choose h]
-  | _ :: _ :: _ =>
-    have ⟨a,b⟩ := h
-    Classical.choose a :: choose_Forall b
-
-theorem choose_Forall_spec {ls : List A} {P : A → B → Prop}
-    (h : List.Forall (fun v => ∃ z : B, P v z) ls)
-    : List.Forall₂ P ls (choose_Forall h) :=
-  match ls with
-  | [] => .nil
-  | _ :: [] => .cons (Classical.choose_spec _) .nil
-  | _ :: _ :: _ =>
-    have ⟨_,b⟩ := h
-    .cons (Classical.choose_spec _) (choose_Forall_spec b)
-
 theorem comp_assoc {W X Y Z} (f : Ent W X) (g : Ent X Y) (h : Ent Y Z)
     : (f ⊛ g) ⊛ h = f ⊛ g ⊛ h := by
   ext a b
   constructor
-  · rintro ⟨lwp, hr, perm, fa⟩
-    let fa' := List.forall_iff_forall_mem.mpr fa
-    refine ⟨
-      (choose_Forall fa') |>.flatten,
-      ?_,
-      ?_,
-      ?_
-      ⟩
-    · simp 
-      sorry
+  · rintro ⟨lwp, hr, perm⟩
+    refine ⟨(lwp.map (fun v => Classical.choose (CompObj.r v))).flatten, ?_, ?_⟩
+    · refine ⟨lwp.map (fun v => CompObj.mk _ _ (Classical.choose_spec (CompObj.r v)).left), ?_, ?_⟩
+      · rw [List.map_map]
+        exact hr
+      · simp only [List.map_flatten, List.map_map]
+        unfold Function.comp
+        exact List.Perm.refl _
+    · apply perm.trans
+      clear *-
+      induction lwp
+      · simp
+      case cons hd tl ih =>
+        simp only [List.map_flatten, List.map_map, List.map_cons, List.flatten_cons,
+          List.map_append, List.flatten_append] at ih ⊢
+        apply List.Perm.append
+        · exact (Classical.choose_spec hd.r).right
+        · exact ih
+
+  · rintro ⟨lwf, ⟨lwg, hlwg, gperm⟩, fperm⟩
+    refine ⟨?_, ?_, ?_⟩
+    · exact lwg.map (fun g => ⟨sorry, g.b, ⟨_, _, _⟩⟩)
     · simp
-      apply perm.trans
-      apply List.Perm.flatten
-      have := choose_Forall_spec fa'
-      simp at this
-      rw [←List.map_flatten]
+      sorry
     · sorry
-  · rintro ⟨lwp, lw', wperm, ⟨lwp', lw'', wperm', rel, fa'⟩, fa⟩
+    stop
     refine ⟨lwp, lw'', by simpa, rel, ?_⟩
     have fa := List.forall₂_iff_get.mp fa
     have fa' := List.forall₂_iff_get.mp fa'
