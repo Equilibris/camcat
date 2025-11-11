@@ -793,28 +793,18 @@ section Ex3
 
 variable {A B C : Type u}
 
-structure Ent (A B : Type u) where
-  r : List A → B → Prop
-  perm : ∀ l₁ b, r l₁ b → ∀ l₂, l₁.Perm l₂ → r l₂ b
+def Ent (A B : Type u) := Multiset A → B → Prop
+/- structure Ent (A B : Type u) where -/
+/-   r : List A → B → Prop -/
+/-   perm : ∀ l₁ b, r l₁ b → ∀ l₂, l₁.Perm l₂ → r l₂ b -/
 
 namespace Ent
 
-@[ext]
-def ext {E F : Ent A B} (h : ∀ a b, E.r a b ↔ F.r a b) : E = F :=
-  match E, F with
-  | ⟨_, _⟩, ⟨_, _⟩ =>
-    (mk.injEq _ _ _ _).mpr
-    <| funext fun a => funext fun b => propext (h a b)
-
 variable (R : A → B → Prop)
 
-abbrev LiftR : Ent A B where
-  r a b := ∃ w, a = [w] ∧ R w b
-  perm l b := by 
-    rintro ⟨w, rfl, rwb⟩
-    simpa
+abbrev LiftR : Ent A B := fun a b => ∃ w, a = [w] ∧ R w b
 
-def Ax A : Ent A A := LiftR (· = ·)
+abbrev Ax A : Ent A A := LiftR (· = ·)
 
 -- The alternative is a sublist structure,
 -- This might be more expressive but also harder
@@ -829,18 +819,14 @@ def Ax A : Ent A A := LiftR (· = ·)
 -- Therefore I will assume I have argued for this.
 
 structure CompObj (E : Ent A B) where
-  la : List A
+  la : Multiset A
   b : B
-  r : E.r la b
+  r : E la b
 
-def comp (E : Ent A B) (F : Ent B C) : Ent A C where
-  r ls c := ∃ lpart : List (CompObj E),
-    F.r (lpart.map CompObj.b) c
-    ∧ ls.Perm (lpart.map CompObj.la).flatten
-
-  perm l₁ b := by
-    rintro ⟨lpart, fr, perm⟩ l₂ lperm
-    refine ⟨lpart, fr, lperm.symm.trans perm⟩
+def comp (E : Ent A B) (F : Ent B C) : Ent A C :=
+  fun ls c => ∃ lpart : Multiset (CompObj E),
+    F (lpart.map CompObj.b) c
+    ∧ ls = (lpart.map CompObj.la).sum
 
 -- Type \circledast
 infixr:100 " ⊛ " => comp
@@ -849,17 +835,19 @@ theorem comp_respects_comp
     (R : A → B → Prop)
     (S : B → C → Prop)
     : LiftR (Relation.Comp R S) = LiftR R ⊛ LiftR S := by
-  ext a b
-  simp [comp, Relation.Comp]
+  funext a b
+  simp [comp, LiftR, Relation.Comp]
   constructor
   · rintro ⟨w, rfl, w', rww', sw'b⟩
-    use [⟨[w], w', _, rfl, rww'⟩]
+    use { ⟨{ w }, w', _, rfl, rww'⟩ }
     simp [sw'b]
-  · rintro ⟨_, ⟨⟨a, b, ⟨w, rfl, rwb⟩⟩, ⟨a, rfl⟩, swb⟩, perm⟩
-    simp only [List.map_cons, List.map_nil, List.flatten_cons, List.flatten_nil, List.append_nil,
-      List.perm_singleton] at perm
-    subst perm
-    refine ⟨w, rfl, _, rwb, swb⟩
+  · rintro ⟨_, ⟨w, l, swb⟩, rfl⟩
+    simp only [Multiset.map_eq_singleton] at l
+    rcases l with ⟨lm, rfl, rfl⟩
+    rcases lm with ⟨_,_,_,rfl,r⟩
+    simp_all only [Multiset.coe_singleton, Multiset.map_singleton, Multiset.sum_singleton,
+      Multiset.singleton_inj, exists_eq_left']
+    refine ⟨_, r, swb⟩
 
 @[simp]
 theorem map_singleton_flatten : {a : List A} → (List.map List.singleton a).flatten = a
@@ -868,37 +856,55 @@ theorem map_singleton_flatten : {a : List A} → (List.map List.singleton a).fla
     change hd :: (List.map List.singleton tl).flatten = hd :: tl
     rw [map_singleton_flatten]
 
+@[simp]
+theorem map_singleton_sum {a : Multiset A} : (a.map ({·})).sum = a := by
+  induction a using Quot.ind;rename_i a
+  simp
+  induction a
+  · rfl
+  · simp_all
+
+@[simp]
+theorem multiset_map_some {f : A → B} {ms : Multiset (Multiset A)} : 
+    Multiset.map f ms.sum = (ms.map (Multiset.map f)).sum := by
+  induction ms using Quot.ind;rename_i ms
+  simp
+  induction ms
+  · rfl
+  case cons hd tl ih => simpa
+ 
 theorem comp_Ax (E : Ent A B) : E ⊛ Ax B = E := by
-  ext a b
+  funext a b; ext
   constructor
-  · rintro ⟨lperm, eqS, perm⟩
-    simp [Ax] at eqS
+  · rintro ⟨lperm, eqS, rfl⟩
+    simp [Ax, Multiset.map_eq_singleton] at eqS
     rcases eqS with ⟨w, rfl, rfl⟩
-    simp only [List.map_cons, List.map_nil, List.flatten_cons, List.flatten_nil,
-      List.append_nil] at perm
-    exact E.perm _ _ w.r _ perm.symm
+    simp only [Multiset.map_singleton, Multiset.sum_singleton]
+    exact w.r
   · intro h
     refine ⟨[CompObj.mk a b h], ?_, ?_⟩
     <;> simp_all [Ax]
 
 theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
-  ext a b
+  funext a b; ext
   constructor
-  · rintro ⟨lperm, eqS, perm⟩
-    have : (List.map CompObj.la lperm) =
-          List.map List.singleton (List.map CompObj.b lperm) := by
-      simp only [List.map_map, List.map_inj_left, Function.comp_apply]
-      rintro ⟨_,_, _, rfl, rfl⟩ _; rfl
-    rw [this, map_singleton_flatten] at perm
-    exact E.perm _ b eqS a perm.symm
+  · rintro ⟨lperm, eqS, rfl⟩
+    have : (Multiset.map CompObj.la lperm) =
+          Multiset.map ({·}) (Multiset.map CompObj.b lperm) := by
+      induction lperm using Quot.ind; rename_i l
+      simp
+      clear *-
+      induction l
+      · rfl
+      case cons hd tl ih =>
+        simp at *
+        rcases hd with ⟨_,_,_, rfl, rfl⟩
+        simpa
+    rwa [this, map_singleton_sum]
   · intro h
-    refine ⟨a.map (fun a => ⟨List.singleton a, a, ⟨_, rfl, rfl⟩⟩), ?_, ?_⟩
-    · rw [List.map_map]
-      unfold Function.comp
-      simpa
-    · simp only [List.map_map]
-      change a.Perm (List.map List.singleton a).flatten
-      rw [map_singleton_flatten]
+    refine ⟨a.map (fun a => ⟨{a}, a, ⟨_, rfl, rfl⟩⟩), ?_, ?_⟩
+    · simpa
+    · simp
 
 -- Really cool, this wasnt in mathlib before
 def Quotient.liftd
@@ -924,34 +930,72 @@ theorem Quotient.liftd_mk
     : Quotient.liftd f heq (.mk s v) = f v :=
   rfl
 
+def construct_comp
+    {W X Y}
+    [DecidableEq X]
+    [LE X]
+    [DecidableLE X]
+    [IsTotal X (· ≤ ·)]
+    [IsTrans X (· ≤ ·)]
+    [IsAntisymm X (· ≤ ·)]
+    (f : Ent W X) (g : Ent X Y)
+    (l1 : List (CompObj f))
+    (l2 : List (CompObj g))
+    (h : (l1.map CompObj.b) = ((l2.map CompObj.la).sum))
+    : List (CompObj (f ⊛ g)) :=
+  match l2 with
+  | [] => []
+  | ⟨al, v, o⟩ :: tl =>
+    let fx := (fun ⟨l1, rst⟩ x =>
+        match h : l1.findIdx? (x = ·.b) with
+        | .none => ⟨l1, rst⟩
+        | .some v =>
+          have ⟨a, b⟩ := l1.splitAt v
+          ⟨a ++ b.tail, l1[v]'sorry :: rst⟩
+      )
+    let x := (al.sort (· ≤ ·)).foldl fx <| Prod.mk l1 ([] : List (CompObj f))
+    have : (x.2.map CompObj.b) = (al.sort (· ≤ ·)) := by
+      dsimp [x]; clear x
+      generalize (al.sort (· ≤ ·)) = al
+      stop
+      /- induction al, fx using List.foldlRecOn -/
+      /- · rfl -/
+      case cons ih =>
+        simp [] at ih ⊢
+        sorry
+    {
+      la := (x.2.map CompObj.la).sum
+      b := v
+      r := ⟨
+        x.2,
+        by sorry,
+        rfl
+      ⟩
+    } :: construct_comp f g x.1 tl sorry
+
 theorem comp_assoc {W X Y Z} (f : Ent W X) (g : Ent X Y) (h : Ent Y Z)
     : (f ⊛ g) ⊛ h = f ⊛ g ⊛ h := by
-  ext a b
+  funext a b; ext
   constructor
-  · rintro ⟨lwp, hr, perm⟩
-    refine ⟨(lwp.map (fun v => Classical.choose (CompObj.r v))).flatten, ?_, ?_⟩
+  · rintro ⟨lwp, hr, rfl⟩
+    refine ⟨(lwp.map (fun v => Classical.choose (CompObj.r v))).sum, ?_, ?_⟩
     · refine ⟨lwp.map (fun v => CompObj.mk _ _ (Classical.choose_spec (CompObj.r v)).left), ?_, ?_⟩
-      · rw [List.map_map]
+      · rw [Multiset.map_map]
         exact hr
-      · simp only [List.map_flatten, List.map_map]
-        unfold Function.comp
-        exact List.Perm.refl _
-    · apply perm.trans
+      · simp [Multiset.map_map]
+    · simp
       clear *-
+      induction lwp using Quot.ind; rename_i lwp
       induction lwp
       · simp
       case cons hd tl ih =>
-        simp only [List.map_flatten, List.map_map, List.map_cons, List.flatten_cons,
-          List.map_append, List.flatten_append] at ih ⊢
-        apply List.Perm.append
-        · exact (Classical.choose_spec hd.r).right
-        · exact ih
-
-  · rintro ⟨lwf, ⟨lwg, hlwg, gperm⟩, fperm⟩
+        simp only [Multiset.quot_mk_to_coe'', Multiset.map_coe, Multiset.sum_coe, List.map_cons,
+          List.sum_cons, Multiset.sum_add] at ih ⊢
+        rw [←(Classical.choose_spec hd.r).right, ←ih]
+  · rintro ⟨lwf, ⟨lwg, hlwg, gperm⟩, rfl⟩
     refine ⟨?_, ?_, ?_⟩
-    · exact lwg.map (fun g => ⟨sorry, g.b, ⟨_, _, _⟩⟩)
-    · simp
-      sorry
+    · sorry
+    · sorry
     · sorry
     stop
     refine ⟨lwp, lw'', by simpa, rel, ?_⟩
@@ -976,8 +1020,7 @@ instance : Category EType where
   id    := Ent.Ax
   id_comp := Ent.Ax_comp
   comp_id := Ent.comp_Ax
-  assoc := sorry
-
+  assoc   := Ent.comp_assoc
 
 end Ex3
 
