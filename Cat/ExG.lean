@@ -542,16 +542,19 @@ def snd (A B : EType.{u}) : ofType (A.toType ⊕ B.toType) ⟶ B where
     obtain rfl := List.singleton_perm.mp perm
     rfl
 
+def lift
+    (A B : EType.{u})
+    {T : EType.{u}}
+    (f : T ⟶ A) (s : T ⟶ B) : T ⟶ { toType := A.toType ⊕ B.toType } where
+  r tl := fun
+    | .inl v => f.r tl v
+    | .inr v => s.r tl v
+  perm := fun 
+    | l₁, .inl v, (h : f.r _ _), l₂, perm => f.perm _ _ h _ perm
+    | l₁, .inr v, (h : s.r _ _), l₂, perm => s.perm _ _ h _ perm
+
 instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A B) :=
-  .ofUniqueHom
-    (fun {T} f s => {
-      r tl := fun
-        | .inl v => f.r tl v
-        | .inr v => s.r tl v
-      perm := fun 
-        | l₁, .inl v, (h : f.r _ _), l₂, perm => f.perm _ _ h _ perm
-        | l₁, .inr v, (h : s.r _ _), l₂, perm => s.perm _ _ h _ perm
-    })
+  .ofUniqueHom (lift A B)
     (fun {T} f g => by
       refine ext fun a b => ?_
       dsimp [CategoryStruct.comp, comp, MsRel]
@@ -631,24 +634,24 @@ instance (A B : EType) : Limits.HasBinaryProduct A B :=
 instance : Limits.HasBinaryProducts EType :=
   Limits.hasBinaryProducts_of_hasLimit_pair _
 
-def inl (A B : EType.{u}) : A ⟶ ofType (A.toType ⊕ B.toType) where
-  r a b := ∃ v, a = [v] ∧ b = .inl v
+def inl (A B : EType.{u}) : A ⟶ ofType (A.toType × B.toType) where
+  r a b := a = [b.1]
   perm l₁ b := by
     rintro ⟨_, rfl, rfl⟩ l₂ perm
     obtain rfl := List.singleton_perm.mp perm
-    refine ⟨_, rfl, rfl⟩
+    rfl
 
-def inr (A B : EType.{u}) : B ⟶ ofType (A.toType ⊕ B.toType) where
-  r a b := ∃ v, a = [v] ∧ b = .inr v
+def inr (A B : EType.{u}) : B ⟶ ofType (A.toType × B.toType) where
+  r a b := a = [b.2]
   perm l₁ b := by
     rintro ⟨_, rfl, rfl⟩ l₂ perm
     obtain rfl := List.singleton_perm.mp perm
-    refine ⟨_, rfl, rfl⟩
+    rfl
 
 example (A B : EType.{u}) : Limits.IsBinaryCoproduct (inl A B) (inr A B) :=
   .ofUniqueHom
     (fun {T} inl inr => {
-      r a b := inl.r (a.filterMap Sum.getLeft?) b ∨ inr.r (a.filterMap Sum.getRight?) b
+      r a b := inl.r (a.map _root_.Prod.fst) b ∨ inr.r (a.map _root_.Prod.snd) b
       perm := sorry
     })
     (fun {T} l r => by
@@ -659,6 +662,7 @@ example (A B : EType.{u}) : Limits.IsBinaryCoproduct (inl A B) (inr A B) :=
         simp [MsRel, inl, Multiset.map_eq_singleton] at hr
         sorry
       · intro h
+        simp [MsRel, inl, Multiset.map_eq_singleton]
         refine ⟨(a.map Sum.inl), Fin.cast (List.length_map Sum.inl).symm, .inl ?_, ?_⟩
         · rw [List.filterMap_map]
           change l.r (List.filterMap Option.some a) b
@@ -690,17 +694,60 @@ example (hCp : HasBinaryCoproducts EType) : False := by
 
 open Limits in
 class IsExponential {𝓒} [Category 𝓒] [Limits.HasBinaryProducts 𝓒] (X Y Y_X : 𝓒) where
-  app : Y_X ⨯ X ⟶ Y
-  cur_ex (Z : 𝓒) (f : Z ⨯ X ⟶ Y) : ∃! cur, prod.map cur (𝟙 X) ≫ app = f
+  prod : 𝓒 → 𝓒 → 𝓒
+  fst (A B : 𝓒) : prod A B ⟶ A
+  snd (A B : 𝓒) : prod A B ⟶ B
+  isProd (A B : 𝓒) : IsBinaryProduct (fst A B) (snd A B)
+  app : prod Y_X X ⟶ Y
+  cur_ex (Z : 𝓒) (f : prod Z X ⟶ Y) : ∃! cur,
+    IsBinaryProduct.map (fst _ _) (snd _ _) (isProd _ _) cur (𝟙 X) ≫ app = f
 
 open Limits in
-instance {X Y : EType.{u}} : IsExponential X Y (ofType <| (List Y.toType) × X.toType) where
-  app := (IsBinaryProduct.iso productIsBinaryProduct (isBiProdSum _ _)).hom ≫ {
-    r := by dsimp; sorry
-    perm := sorry
+instance {X Y : EType.{u}} : IsExponential X Y (ofType <| (Multiset X.toType) × Y.toType) where
+  prod := _; fst := _; snd := _
+  isProd A B := isBiProdSum A B
+  app := {
+    r ls v := ls.filterMap Sum.getLeft? ≠ [] → ∃ l₁ l₂ n,
+      l₂ = ls.filterMap Sum.getRight? ∧
+      List.replicate n ⟨l₁, v⟩ = ls.filterMap Sum.getLeft? ∧ l₁ = l₂
+    perm la b := by
+      rintro h lb permab hasLefts
+      specialize h ?_
+      · intro h
+        apply hasLefts
+        simp only [List.filterMap_eq_nil_iff, Sum.getLeft?_eq_none_iff, Sum.forall, Sum.isRight_inl,
+          Bool.false_eq_true, imp_false, Prod.forall, Sum.isRight_inr, implies_true,
+          and_true] at h ⊢
+        intro a b mem
+        exact h a b <| (List.Perm.mem_iff permab.symm).mp mem
+      rcases h with ⟨l₁, _, nr, rfl, hEq, rfl⟩
+      have hEqB := (List.perm_replicate.mpr hEq.symm).symm.trans 
+        (List.Perm.filterMap Sum.getLeft? permab)
+        |>.symm
+        |> List.perm_replicate.mp
+        |>.symm
+      refine ⟨_, _ ,nr, rfl, hEqB, ?_⟩
+      simp [List.Perm.filterMap Sum.getRight? permab]
   }
   cur_ex Z f := by
-    sorry
+    refine ⟨
+      {
+        r v s := ∃ y z, v = [z] ∧ f.r (s.1.toList.map (Sum.inr)) y
+        perm := by
+          sorry
+      },
+      ?holds,
+      ?uniq
+    ⟩
+    · change Ent.comp (lift _ _ _ _) _ = _
+      dsimp [BinaryFan.fst, BinaryFan.snd]
+      refine Ent.ext fun a b => ⟨?_, ?_⟩
+      <;> dsimp [Ent.comp]
+      · rintro ⟨w, fM, hl, hr⟩
+        simp [MsRel, snd,fst,lift] at hr
+        sorry
+      · sorry
+    · sorry
 
 end EType
 

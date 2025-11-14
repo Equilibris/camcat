@@ -68,6 +68,18 @@ theorem IsBinaryProduct.uniq
     | .mk .left => hf
     | .mk .right => hg
 
+def IsBinaryProduct.map
+    (fst : P ⟶ X)
+    (snd : P ⟶ Y)
+    {P' X' Y' : 𝓒}
+    {fst' : P' ⟶ X'}
+    {snd' : P' ⟶ Y'}
+    (hg : IsBinaryProduct fst' snd')
+    (f : X ⟶ X')
+    (g : Y ⟶ Y')
+    : P ⟶ P' :=
+  hg.lift (fst ≫ f) (snd ≫ g)
+
 theorem IsBinaryProduct.hom_ext
     (h : IsBinaryProduct fst snd)
     {f g : T ⟶ P}
