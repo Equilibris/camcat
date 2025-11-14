@@ -25,6 +25,29 @@ structure σ (n : Nat) where
   f : Fin n → Fin n
   bij : Function.Bijective f
 
+-- Working with these is extremely painful as they are not what multisets expect
+-- Therefore this following section justifies how these are equivilent to an inductive definition.
+-- The point of this is to change the definition to talk about perms,
+-- rather than using sigmas directly.
+-- The definition of Perm is as follows:
+
+/--
+info: inductive List.Perm.{u} : {α : Type u} → List α → List α → Prop
+number of parameters: 1
+constructors:
+List.Perm.nil : ∀ {α : Type u}, [] ~ []
+List.Perm.cons : ∀ {α : Type u} (x : α) {l₁ l₂ : List α}, l₁ ~ l₂ → x :: l₁ ~ x :: l₂
+List.Perm.swap : ∀ {α : Type u} (x y : α) (l : List α), y :: x :: l ~ x :: y :: l
+List.Perm.trans : ∀ {α : Type u} {l₁ l₂ l₃ : List α}, l₁ ~ l₂ → l₂ ~ l₃ → l₁ ~ l₃
+-/
+#guard_msgs in
+#print List.Perm
+
+-- Notably this isnt data-carrying.
+-- As shown in a proof bellow, whenever you have a perm, you can construct a σ.
+-- I would almost ignore this section as it is just gruntwork and pure De Bruijn factor
+
+
 -- We define sigma application as expected
 def apply_sig (l : List A) (s : σ l.length) : List A := List.ofFn (l.get ∘ s.f)
 
@@ -79,7 +102,7 @@ theorem apply_sig_Perm {l : List A} {s : σ _} : List.Perm (l.apply_sig s) l := 
   exact eq
 
 @[simp]
-theorem _root_.List.apply_sig_length {l : List A} {s : σ _} : (l.apply_sig s).length  = l.length :=
+theorem apply_sig_length {l : List A} {s : σ _} : (l.apply_sig s).length = l.length :=
   List.Perm.length_eq List.apply_sig_Perm
 
 -- This is in mathlib, I actually pushed it there
@@ -100,7 +123,7 @@ theorem dcongr_heq
 
 -- This proof could be made constructive by transforming Perm to reside in Type
 -- This is by far the most gruntworky section component of the proof.
-theorem _root_.List.Perm_apply_sig : {l₁ l₂ : List A} → l₁.Perm l₂ → ∃ s, l₁.apply_sig s = l₂ := by
+theorem Perm_apply_sig : {l₁ l₂ : List A} → l₁.Perm l₂ → ∃ s, l₁.apply_sig s = l₂ := by
   intro l₁ l₂ perm
   induction perm
   · exact ⟨⟨_, Function.bijective_id⟩, rfl⟩
@@ -196,6 +219,10 @@ theorem _root_.List.Perm_apply_sig : {l₁ l₂ : List A} → l₁.Perm l₂ →
         rintro - -
         congr!
     ⟩
+
+theorem ex_sigma_perm {l₁ l₂ : List A} (h : ∃ s, l₁.apply_sig s = l₂) : l₁.Perm l₂ := by
+  rcases h with ⟨s, rfl⟩
+  exact Perm.symm apply_sig_Perm
 
 -- Finally we can show my notion is equivilent to the one given in the task
 theorem sigma_is_permunation

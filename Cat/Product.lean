@@ -107,9 +107,93 @@ def IsBinaryProduct.iso
   hom_inv_id := hom_ext h₁ (by simp) (by simp)
   inv_hom_id := hom_ext h₂ (by simp) (by simp)
 
+/- def IsBinaryProduct.leftUnitor -/
+/-     {X Y P T : 𝓒} -/
+/-     (it : IsTerminal T) -/
+/-      -/
+/-     {tfst : (⊤_ 𝓒) ⨯ P ⟶ (⊤_ 𝓒)} {tsnd : (⊤_ 𝓒) ⨯ P ⟶ P} -/
+/-     (h : IsBinaryProduct tfst tsnd) -/
+/-     : (⊤_ 𝓒) ⨯ P ≅ P where -/
+/-   hom := tsnd -/
+/-   inv := h.lift (terminal.from P) (𝟙 P) -/
+/-   hom_inv_id := by -/
+/-     apply h.hom_ext -/
+/-     · simp [h.lift_fst] -/
+/-       rw [terminal.comp_from] -/
+/-     · simp [h.lift_snd] -/
+/-   inv_hom_id := by simp [h.lift_snd] -/
+/-  -/
+/- def IsBinaryProduct.rightUnitor -/
+/-     [HasTerminal 𝓒] -/
+/-     {P : 𝓒} -/
+/-     {tfst : P ⨯ (⊤_ 𝓒) ⟶ P} {tsnd : P ⨯ (⊤_ 𝓒) ⟶ (⊤_ 𝓒)} -/
+/-     (h : IsBinaryProduct tfst tsnd) -/
+/-     : P ⨯ (⊤_ 𝓒) ≅ P where -/
+/-   hom := tfst -/
+/-   inv := h.lift (𝟙 P) (terminal.from P) -/
+/-   hom_inv_id := by -/
+/-     apply h.hom_ext -/
+/-     · simp [h.lift_fst] -/
+/-     · simp [h.lift_snd] -/
+/-       rw [terminal.comp_from] -/
+/-   inv_hom_id := by simp [h.lift_fst] -/
+/-  -/
+/- def IsBinaryProduct.associator -/
+/-     {P Q R PQ_R PQ QR : 𝓒} -/
+/-     {pq_fst : PQ ⟶ P} {pq_snd : PQ ⟶ Q} -/
+/-     {qr_fst : QR ⟶ Q} {qr_snd : QR ⟶ R} -/
+/-     {pqr_fst : PQ_R ⟶ PQ} {pqr_snd : PQ_R ⟶ R} -/
+/-     {p_qr_fst : P ⨯ QR ⟶ P} {p_qr_snd : P ⨯ QR ⟶ QR} -/
+/-     (h_PQ : IsBinaryProduct pq_fst pq_snd) -/
+/-     (h_QR : IsBinaryProduct qr_fst qr_snd) -/
+/-     (h_PQ_R : IsBinaryProduct pqr_fst pqr_snd) -/
+/-     (h_P_QR : IsBinaryProduct p_qr_fst p_qr_snd) -/
+/-     : PQ_R ≅ P ⨯ QR where -/
+/-   hom := h_P_QR.lift (pqr_fst ≫ pq_fst) (h_QR.lift (pqr_fst ≫ pq_snd) pqr_snd) -/
+/-   inv := h_PQ_R.lift (h_PQ.lift p_qr_fst (p_qr_snd ≫ qr_fst)) (p_qr_snd ≫ qr_snd) -/
+/-   hom_inv_id := by -/
+/-     apply h_PQ_R.hom_ext -/
+/-     · simp [h_P_QR.lift_fst, h_PQ.lift_fst] -/
+/-     · simp [h_P_QR.lift_snd, h_QR.lift_snd, h_PQ.lift_snd] -/
+/-   inv_hom_id := by -/
+/-     apply h_P_QR.hom_ext -/
+/-     · simp [h_PQ_R.lift_fst, h_PQ.lift_fst] -/
+/-     · simp [h_PQ_R.lift_snd, h_QR.lift_fst, h_QR.lift_snd] -/
+
 noncomputable def productIsBinaryProduct [HasBinaryProduct X Y]
     : IsBinaryProduct (prod.fst : X ⨯ Y ⟶ X) prod.snd :=
   prodIsProd X Y
+
+/--
+info: def CategoryTheory.Limits.prod.leftUnitor.{v, u} : {C : Type u} →
+  [inst : Category.{v, u} C] →
+    [inst_1 : HasTerminal C] → (P : C) → [inst_2 : HasBinaryProduct (⊤_ C) P] → (⊤_ C) ⨯ P ≅ P :=
+fun {C} [Category.{v, u} C] [HasTerminal C] P [HasBinaryProduct (⊤_ C) P] ↦
+  { hom := prod.snd, inv := prod.lift (terminal.from P) (𝟙 P), hom_inv_id := ⋯, inv_hom_id := ⋯ }
+-/
+#guard_msgs in
+#print prod.leftUnitor
+
+/--
+info: def CategoryTheory.Limits.prod.rightUnitor.{v, u} : {C : Type u} →
+  [inst : Category.{v, u} C] →
+    [inst_1 : HasTerminal C] → (P : C) → [inst_2 : HasBinaryProduct P (⊤_ C)] → P ⨯ ⊤_ C ≅ P :=
+fun {C} [Category.{v, u} C] [HasTerminal C] P [HasBinaryProduct P (⊤_ C)] ↦
+  { hom := prod.fst, inv := prod.lift (𝟙 P) (terminal.from P), hom_inv_id := ⋯, inv_hom_id := ⋯ }
+-/
+#guard_msgs in
+#print prod.rightUnitor
+
+/--
+info: def CategoryTheory.Limits.prod.associator.{v, u} : {C : Type u} →
+  [inst : Category.{v, u} C] → [inst_1 : HasBinaryProducts C] → (P Q R : C) → (P ⨯ Q) ⨯ R ≅ P ⨯ Q ⨯ R :=
+fun {C} [Category.{v, u} C] [HasBinaryProducts C] P Q R ↦
+  { hom := prod.lift (prod.fst ≫ prod.fst) (prod.lift (prod.fst ≫ prod.snd) prod.snd),
+    inv := prod.lift (prod.lift prod.fst (prod.snd ≫ prod.fst)) (prod.snd ≫ prod.snd), hom_inv_id := ⋯,
+    inv_hom_id := ⋯ }
+-/
+#guard_msgs in
+#print prod.associator
 
 end prod
 
