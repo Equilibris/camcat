@@ -8,7 +8,7 @@ universe u
 variable
     {𝓒 : Type u}
     [Category 𝓒]
-    {U V W X Y P T : 𝓒}
+    {U V W X Y Z P T : 𝓒}
 
 section prod
 
@@ -311,6 +311,14 @@ def IsBinaryCoproduct.iso
 noncomputable def coproductIsBinaryCoproduct [HasBinaryCoproduct X Y]
     : IsBinaryCoproduct (coprod.inl : X ⟶ X ⨿ Y) coprod.inr :=
   coprodIsCoprod X Y
+
+noncomputable def coprod_homset_equiv
+    [HasBinaryCoproduct X Y] {Z : 𝓒}
+    : ((X ⨿ Y) ⟶ Z) ≃ ((X ⟶ Z) × (Y ⟶ Z)) where
+  toFun   v := ⟨coprod.inl ≫ v, coprod.inr ≫ v⟩
+  invFun  v := coprod.desc v.1 v.2
+  left_inv a := by simp [←coprod.desc_comp]
+  right_inv a := by simp
 
 end coprod
 

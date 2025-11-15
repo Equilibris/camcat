@@ -22,11 +22,101 @@ universe u v
 
 namespace CategoryTheory
 
-section Ex3
-
 variable {A B C : Type _}
 
-/- def Ent (A B : Type u) := Multiset A → B → Prop -/
+section lemmas
+
+theorem fin_cast_linv {n m} (p : n = m) : Function.LeftInverse (Fin.cast p.symm) (Fin.cast p) :=
+  fun _ => rfl
+theorem fin_cast_rinv {n m} (p : n = m) : Function.RightInverse (Fin.cast p.symm) (Fin.cast p) :=
+  fun _ => rfl
+
+theorem bij_f_cast {n m} {p : n = m} : Function.Bijective (Fin.cast p) := by
+  constructor
+  · exact Fin.cast_injective p
+  · intro a
+    use (Fin.cast p.symm a)
+    rw [Fin.cast_trans, Fin.cast_eq_self]
+
+@[simp]
+theorem filterMap_add 
+    {a b : Multiset A}
+    {f : A → Option B}
+    : ((a + b).filterMap f) = (a.filterMap f + b.filterMap f) := by 
+  induction a using Quot.ind; rename_i a
+  induction b using Quot.ind; rename_i b
+  simp
+@[simp]
+theorem filterMap_none
+    {ms : Multiset A}
+    : Multiset.filterMap (fun _ ↦ none) ms = ({} : Multiset B) := by
+  induction ms using Quot.ind; rename_i ms
+  simp
+
+@[simp]
+theorem map_singleton_flatten : {a : List A} → (List.map List.singleton a).flatten = a
+  | [] => rfl
+  | hd :: tl => by
+    change hd :: (List.map List.singleton tl).flatten = hd :: tl
+    rw [map_singleton_flatten]
+
+@[simp]
+theorem map_singleton_sum {a : Multiset A} : (a.map ({·})).sum = a := by
+  induction a using Quot.ind;rename_i a
+  simp
+  induction a
+  · rfl
+  · simp_all
+
+@[simp]
+theorem multiset_map_some {f : A → B} {ms : Multiset (Multiset A)} :
+    Multiset.map f ms.sum = (ms.map (Multiset.map f)).sum := by
+  induction ms using Quot.ind;rename_i ms
+  simp only [Multiset.quot_mk_to_coe'', Multiset.sum_coe, Multiset.map_coe]
+  induction ms
+  · rfl
+  case cons hd tl ih => simpa
+
+@[simp]
+theorem multiset_map_all {a : List A}
+    : (Multiset.map a.get Fintype.elems.val)
+    = Multiset.ofList a := by
+  induction a
+  · rfl
+  case cons hd tl ih =>
+    have : (Fintype.elems.val : Multiset (Fin (hd :: tl).length)) = 
+      ⟨0, by simp⟩ ::ₘ (Fintype.elems.val.map Fin.succ) := by
+      refine (Multiset.Nodup.ext ?_ ?_).mpr ?_
+      · exact Fintype.elems.nodup
+      · simp only [List.length_cons, Fin.zero_eta, Multiset.nodup_cons, Multiset.mem_map,
+          Finset.mem_val, Fin.succ_ne_zero, and_false, exists_false, not_false_eq_true, true_and]
+        exact
+          (Multiset.nodup_map_iff_of_injective <| Fin.succ_injective _).mpr
+            Fintype.elems.nodup
+      rintro (_|_)
+      <;> simp [Fintype.complete]
+    rw [this]
+    simp only [Fin.zero_eta, List.length_cons, Multiset.map_cons, Multiset.map_map,
+      Function.comp_apply]
+    change hd ::ₘ Multiset.map tl.get _ = _
+    rw [ih]
+    simp
+
+@[simp]
+theorem multiset_map_all' {a : List A}
+    : (Multiset.map (fun x ↦ a[↑x]) (Fintype.elems.val : Multiset <| Fin a.length))
+    = Multiset.ofList a :=
+  multiset_map_all
+
+@[simp]
+theorem Perm_ofList_toList {a : List A} : a.Perm (Multiset.ofList a).toList :=
+  Multiset.coe_eq_coe.mp <| (Multiset.coe_toList _).symm
+
+
+end lemmas
+
+section Ex3
+
 @[grind]
 structure Ent (A B : Type u) where
   r : List A → B → Prop
@@ -61,11 +151,24 @@ def ext {E F : Ent A B} (h : ∀ a b, E.r a b ↔ F.r a b) : E = F :=
     (mk.injEq _ _ _ _).mpr
     <| funext fun a => funext fun b => propext (h a b)
 
+def equivMsRel : (Ent A B) ≃ (Multiset A → B → Prop) where
+  toFun e ms v := e.r ms.toList v
+  invFun := ofMsRel
+  left_inv e := by
+    ext a b
+    constructor
+    <;> rintro h
+    <;> apply e.perm _ _ h
+    <;> apply Multiset.coe_eq_coe.mp
+    <;> simp
+  right_inv v := funext fun a => funext fun b => by
+    simp [ofMsRel]
+
 variable (R : A → B → Prop)
 
 abbrev LiftR : Ent A B where
   r a b := ∃ w, a = [w] ∧ R w b
-  perm l b := by 
+  perm l b := by
     rintro ⟨w, rfl, rwb⟩
     simpa
 
@@ -187,11 +290,13 @@ theorem exists_sig_iff_unique_valued {f : A → B} [DecidableEq B] {v}
     have := eq_unit h
     refine ⟨w, this, fun y => ?_⟩
     rintro rfl
-    simp [fin_preimage] at h
+    dsimp [fin_preimage] at h
     rcases fta with ⟨⟨ms, nd⟩, comp⟩
     change Multiset.filter (fun x ↦ f x = _) ms = {w} at h
     induction ms using Quot.ind; rename_i ms
-    simp [List.filter_eq_cons_iff, this] at ms nd comp h
+    simp only [Multiset.quot_mk_to_coe'', Multiset.coe_nodup, Finset.mem_mk, Multiset.mem_coe,
+      Multiset.filter_coe, Multiset.coe_eq_singleton, List.filter_eq_cons_iff, decide_eq_true_eq,
+      this, decide_true, List.filter_eq_nil_iff, true_and] at ms nd comp h
     rcases h with ⟨l₁, l₂, rfl, hl, hr⟩
     obtain (h|rfl|h) : y ∈ l₁ ∨ y = w ∨ y ∈ l₂ := by have := comp y; simp_all
     · exact (hl _ h rfl).elim
@@ -232,18 +337,6 @@ theorem exists_sig_iff_bijective {f : A → B} [DecidableEq B]
 
 end fin_preimage
 
-theorem fin_cast_linv {n m} (p : n = m) : Function.LeftInverse (Fin.cast p.symm) (Fin.cast p) := 
-  fun _ => rfl
-theorem fin_cast_rinv {n m} (p : n = m) : Function.RightInverse (Fin.cast p.symm) (Fin.cast p) := 
-  fun _ => rfl
-
-theorem bij_f_cast {n m} {p : n = m} : Function.Bijective (Fin.cast p) := by
-  constructor
-  · exact Fin.cast_injective p
-  · intro a
-    use (Fin.cast p.symm a)
-    rw [Fin.cast_trans, Fin.cast_eq_self]
-
 def comp (E : Ent A B) (F : Ent B C) : Ent A C where
   r := fun ls c =>
     ∃ lpart : List B, ∃ f : Fin ls.length → Fin lpart.length,
@@ -267,6 +360,35 @@ def comp (E : Ent A B) (F : Ent B C) : Ent A C where
     conv => lhs; lhs; intro x; rw [hrS x]
     exact mapping v'
 
+structure CompObj (E : Multiset A → B → Prop) where
+  la : Multiset A
+  b : B
+  r : E la b
+
+def comp'
+    (E : Multiset A → B → Prop)
+    (F : Multiset B → C → Prop)
+    (ls : Multiset A)
+    (c : C) : Prop :=
+  ∃ lpart : Multiset (CompObj E),
+    F (lpart.map CompObj.b) c
+    ∧ ls = (lpart.map CompObj.la).sum
+
+theorem comp_iff_comp'
+    (E : Ent A B) (F : Ent B C)
+    : comp E F = equivMsRel.invFun (comp' (equivMsRel.toFun E) (equivMsRel.toFun F)) := by
+  ext a b
+  dsimp [equivMsRel, ofMsRel, comp, comp']
+  constructor
+  · sorry
+  · rintro ⟨lpart, hl, hr⟩
+    refine ⟨_, ?_, hl, ?_⟩
+    · simp
+      sorry
+    · intro v
+      simp
+      sorry
+
 -- Type \circledast
 infixr:100 " ⊛ " => comp
 
@@ -275,20 +397,22 @@ theorem comp_respects_comp
     (S : B → C → Prop)
     : LiftR (Relation.Comp R S) = LiftR R ⊛ LiftR S := by
   ext a b
-  simp [comp, LiftR, Relation.Comp]
+  simp only [Relation.Comp, comp, LiftR, Fin.getElem_fin, exists_and_left]
   constructor
   · rintro ⟨w, rfl, w', r, s⟩
     refine ⟨[w'], ⟨_, rfl, s⟩, id, fun | ⟨0, _⟩ => ⟨w, ?_, r⟩⟩
     simp
   · rintro ⟨_, ⟨w, rfl, swb⟩, ⟨f, h⟩⟩
     specialize h ⟨0, Nat.zero_lt_succ [].length⟩
-    simp [MsRel, Multiset.map_eq_singleton] at h
+    simp only [MsRel, List.length_cons, List.length_nil, Nat.reduceAdd, Fin.zero_eta, Fin.isValue,
+      fin_preimage.unit_inv, Multiset.toList_eq_singleton_iff, Multiset.map_eq_singleton,
+      Finset.val_eq_singleton_iff, List.getElem_cons_zero, exists_exists_and_eq_and] at h
     rcases h with ⟨w', heq, hr⟩
     obtain ⟨wa, rfl⟩ := 
       have : a.length = 1 := by
         have := Fintype.complete (α := Fin a.length)
         rw [heq] at this
-        simp at this
+        simp only [Finset.mem_singleton] at this
         clear *-this
         rcases a with (_|⟨hd, (_|⟨hd2,tl⟩)⟩)
         · exact w'.elim0
@@ -296,76 +420,17 @@ theorem comp_respects_comp
         · have := (this ⟨0, by simp⟩).trans (this ⟨1, by simp⟩).symm
           simp at this
       List.length_eq_one_iff.mp this
-    simp at hr
+    simp only [List.length_cons, List.length_nil, Nat.reduceAdd, Fin.val_eq_zero,
+      List.getElem_cons_zero] at hr
     refine ⟨wa, rfl, _, hr, swb⟩
-
-@[simp]
-theorem map_singleton_flatten : {a : List A} → (List.map List.singleton a).flatten = a
-  | [] => rfl
-  | hd :: tl => by
-    change hd :: (List.map List.singleton tl).flatten = hd :: tl
-    rw [map_singleton_flatten]
-
-@[simp]
-theorem map_singleton_sum {a : Multiset A} : (a.map ({·})).sum = a := by
-  induction a using Quot.ind;rename_i a
-  simp
-  induction a
-  · rfl
-  · simp_all
-
-@[simp]
-theorem multiset_map_some {f : A → B} {ms : Multiset (Multiset A)} : 
-    Multiset.map f ms.sum = (ms.map (Multiset.map f)).sum := by
-  induction ms using Quot.ind;rename_i ms
-  simp
-  induction ms
-  · rfl
-  case cons hd tl ih => simpa
-
-
-@[simp]
-theorem multiset_map_all {a : List A}
-    : (Multiset.map a.get Fintype.elems.val)
-    = Multiset.ofList a := by
-  induction a
-  · rfl
-  case cons hd tl ih =>
-    have : (Fintype.elems.val : Multiset (Fin (hd :: tl).length)) = 
-      ⟨0, by simp⟩ ::ₘ (Fintype.elems.val.map Fin.succ) := by
-      refine (Multiset.Nodup.ext ?_ ?_).mpr ?_
-      · exact Fintype.elems.nodup
-      · simp only [List.length_cons, Fin.zero_eta, Multiset.nodup_cons, Multiset.mem_map,
-          Finset.mem_val, Fin.succ_ne_zero, and_false, exists_false, not_false_eq_true, true_and]
-        exact
-          (Multiset.nodup_map_iff_of_injective <| Fin.succ_injective _).mpr
-            Fintype.elems.nodup
-      rintro (_|_)
-      <;> simp [Fintype.complete]
-    rw [this]
-    simp only [Fin.zero_eta, List.length_cons, Multiset.map_cons, Multiset.map_map,
-      Function.comp_apply]
-    change hd ::ₘ Multiset.map tl.get _ = _
-    rw [ih]
-    simp
-
-@[simp]
-theorem multiset_map_all' {a : List A}
-    : (Multiset.map (fun x ↦ a[↑x]) (Fintype.elems.val : Multiset <| Fin a.length))
-    = Multiset.ofList a :=
-  multiset_map_all
-
-@[simp]
-theorem Perm_ofList_toList {a : List A} : a.Perm (Multiset.ofList a).toList :=
-  Multiset.coe_eq_coe.mp <| (Multiset.coe_toList _).symm
-
 
 theorem comp_Ax (E : Ent A B) : E ⊛ Ax B = E := by
   ext a b
   constructor
   · rintro ⟨lperm, f, ⟨w,rfl,rfl⟩, hr⟩
     specialize hr ⟨0, by simp⟩
-    simp at hr
+    simp only [List.length_cons, List.length_nil, Nat.reduceAdd, Fin.zero_eta, Fin.isValue,
+      fin_preimage.unit_inv, Fin.getElem_fin, Fin.val_eq_zero, List.getElem_cons_zero] at hr
     change E.MsRel (Multiset.map a.get Fintype.elems.val) w at hr
     rw [multiset_map_all] at hr
     exact E.msRel_coe_iff_r.mpr hr
@@ -376,8 +441,6 @@ theorem comp_Ax (E : Ent A B) : E ⊛ Ax B = E := by
     change E.MsRel (Multiset.map a.get _) _
     rw [multiset_map_all]
     exact msRel_coe_iff_r.mp h
-
-#check List.Perm.length_eq
 
 theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
   ext a b
@@ -402,8 +465,7 @@ theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
       have : (FinEnum.card (Fin a.length)) = 
           (FinEnum.ofEquiv (Fin a.length) ((Equiv.ofBijective f fBij).symm)).card
           := rfl
-      simp at this
-      exact this
+      simpa using this
     apply List.ex_sigma_perm
     refine ⟨⟨f ∘ Fin.cast hlEq.symm, Function.Bijective.comp fBij bij_f_cast⟩, ?_⟩
     apply List.ext_getElem (List.apply_sig_length.trans hlEq.symm)
@@ -421,36 +483,12 @@ theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
     /- · simpa -/
     /- · simp -/
 
--- Really cool, this wasnt in mathlib before
-def Quotient.liftd
-    {α : Sort u} {s : Setoid α} {β : Quotient s → Sort v}
-    (f : (v : α) → β (Quotient.mk s v))
-    (heq : ∀ (a b : α), a ≈ b → f a ≍ f b)
-    (q : Quotient s)
-    : β q :=
-  let res := Quotient.lift
-    (β := (x : Quotient s) ×' β x)
-    (s := s) (fun q => ⟨Quotient.mk s q, f q⟩)
-    (fun a b rel => (PSigma.mk.injEq _ _ _ _).mpr ⟨Quotient.sound rel, heq _ _ rel⟩)
-    q
-  have : res.fst = q := by induction q using Quotient.ind; rfl
-  cast (congr rfl this) res.snd
-
-@[simp]
-theorem Quotient.liftd_mk
-    {α : Sort u} {s : Setoid α} {β : Quotient s → Sort v}
-    (f : (v : α) → β (Quotient.mk s v))
-    (heq : ∀ (a b : α), a ≈ b → f a ≍ f b)
-    (v : α)
-    : Quotient.liftd f heq (.mk s v) = f v :=
-  rfl
-
 theorem comp_assoc {W X Y Z} (f : Ent W X) (g : Ent X Y) (h : Ent Y Z)
     : (f ⊛ g) ⊛ h = f ⊛ g ⊛ h := by
   ext a b
   constructor
   · rintro ⟨lwp, fMap, hr, hfa⟩
-    simp [comp, MsRel] at hfa
+    simp only [MsRel, comp, Fin.getElem_fin, exists_and_left] at hfa
     refine ⟨?_, ?_, ?_⟩
     stop
     refine ⟨(lwp.map (fun v => Classical.choose (CompObj.r v))).sum, ?_, ?_⟩
@@ -470,7 +508,7 @@ theorem comp_assoc {W X Y Z} (f : Ent W X) (g : Ent X Y) (h : Ent Y Z)
   · rintro ⟨lx, fMap, ⟨lym, gMap, hh, hhAll⟩, hyAll⟩
     refine ⟨lym, gMap ∘ fMap, hh, fun iLym => ?_⟩
     refine ⟨lx, ?_, ?_⟩
-    simp
+    simp only [Fin.getElem_fin, Multiset.length_toList, Multiset.card_map]
     stop
     rintro ⟨lwf, ⟨lwg, hlwg, gperm⟩, rfl⟩
     refine ⟨?_, ?_, ?_⟩
@@ -593,11 +631,12 @@ instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A
         rw [multiset_map_all]
         apply g.perm _ _ hr _ Perm_ofList_toList
       )
-    fun {T} f s t => by 
+    fun {T} f s t => by
       rintro rfl rfl
       refine ext fun | a, .inl b => ?il | a, .inr b => ?ir
       <;> dsimp [CategoryStruct.comp, Ent.comp, fst, snd, MsRel]
       <;> constructor
+
       case il.mp =>
         intro h
         refine ⟨_, fun _ => ⟨0, by simp⟩, rfl, fun | ⟨0, _⟩ => ?_⟩
@@ -614,17 +653,20 @@ instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A
         change t.r (Multiset.map a.get Fintype.elems.val).toList _
         rw [multiset_map_all]
         apply t.perm _ _ h _ Perm_ofList_toList
+
       case il.mpr =>
         rintro ⟨_, f, rfl, fa⟩
         specialize fa ⟨0, by simp⟩
-        simp at fa
+        simp only [List.length_cons, List.length_nil, Nat.reduceAdd, Fin.zero_eta, Fin.isValue,
+          fin_preimage.unit_inv, List.getElem_cons_zero] at fa
         change t.r (Multiset.map a.get Fintype.elems.val).toList _ at fa
         rw [multiset_map_all] at fa
         apply t.perm _ _ fa _ Perm_ofList_toList.symm
       case ir.mpr =>
         rintro ⟨_, f, rfl, fa⟩
         specialize fa ⟨0, by simp⟩
-        simp at fa
+        simp only [List.length_cons, List.length_nil, Nat.reduceAdd, Fin.zero_eta, Fin.isValue,
+          fin_preimage.unit_inv, List.getElem_cons_zero] at fa
         change t.r (Multiset.map a.get Fintype.elems.val).toList _ at fa
         rw [multiset_map_all] at fa
         apply t.perm _ _ fa _ Perm_ofList_toList.symm
@@ -634,93 +676,144 @@ instance (A B : EType) : Limits.HasBinaryProduct A B :=
 instance : Limits.HasBinaryProducts EType :=
   Limits.hasBinaryProducts_of_hasLimit_pair _
 
-def inl (A B : EType.{u}) : A ⟶ ofType (A.toType × B.toType) where
-  r a b := a = [b.1]
-  perm l₁ b := by
-    rintro ⟨_, rfl, rfl⟩ l₂ perm
-    obtain rfl := List.singleton_perm.mp perm
-    rfl
+def fintype_card_eq : Finite (A → Bool) → Finite A := by
+  contrapose
+  simp only [not_finite_iff_infinite]
+  exact fun a ↦ Function.infinite_of_left
 
-def inr (A B : EType.{u}) : B ⟶ ofType (A.toType × B.toType) where
-  r a b := a = [b.2]
-  perm l₁ b := by
-    rintro ⟨_, rfl, rfl⟩ l₂ perm
-    obtain rfl := List.singleton_perm.mp perm
-    rfl
-
-example (A B : EType.{u}) : Limits.IsBinaryCoproduct (inl A B) (inr A B) :=
-  .ofUniqueHom
-    (fun {T} inl inr => {
-      r a b := inl.r (a.map _root_.Prod.fst) b ∨ inr.r (a.map _root_.Prod.snd) b
-      perm := sorry
-    })
-    (fun {T} l r => by
-      refine ext fun a b => ?_
-      dsimp [CategoryStruct.comp, comp]
-      constructor
-      · rintro ⟨lpart, f, hl, hr⟩
-        simp [MsRel, inl, Multiset.map_eq_singleton] at hr
-        sorry
-      · intro h
-        simp [MsRel, inl, Multiset.map_eq_singleton]
-        refine ⟨(a.map Sum.inl), Fin.cast (List.length_map Sum.inl).symm, .inl ?_, ?_⟩
-        · rw [List.filterMap_map]
-          change l.r (List.filterMap Option.some a) b
-          rw [List.filterMap_some]
-          exact h
-        · intro v
-          rw [fin_preimage.bij _ (fin_cast_linv _) (fin_cast_linv _)]
-          · dsimp [MsRel, inl]
-            sorry
-          exact List.length_map Sum.inl
-      )
-    sorry
-    sorry
+theorem ms_finite : Finite (Multiset A) → IsEmpty A := by
+  contrapose
+  simp only [not_isEmpty_iff, not_finite_iff_infinite, Nonempty.forall]
+  intro a
+  apply Infinite.of_injective (β := Nat) (Multiset.replicate · a)
+  intro a b h
+  simp only [Multiset.eq_replicate, Multiset.card_replicate] at h
+  exact h.1
 
 open Limits in
 example (hCp : HasBinaryCoproducts EType) : False := by
-  let u := ofType PUnit
-  let : u ⨿ u ⟶ u := coprod.desc
-    {
-      r _ _ := True
-      perm _ _ _ _ _ := .intro
-    }
-    {
-      r _ _ := False
-      perm _ _ := False.elim
-    }
-  #check coprod.inl_desc
-  sorry
+  have msIso : (Multiset PEmpty → PUnit → Prop) ≃ Bool := {
+    toFun v :=
+      have : Decidable (v ∅ PUnit.unit) := Classical.propDecidable (v ∅ PUnit.unit)
+      if v {} .unit then
+        .true
+      else
+        .false
+    invFun := fun
+      | .true => fun _ _ => True
+      | .false => fun _ _ => False
 
-open Limits in
-class IsExponential {𝓒} [Category 𝓒] [Limits.HasBinaryProducts 𝓒] (X Y Y_X : 𝓒) where
+    left_inv v := funext fun a => funext fun | .unit => (by
+      obtain rfl : a = 0 := Subsingleton.eq_zero a
+      dsimp
+      split
+      <;> simpa)
+    right_inv := fun | .true | .false => by simp
+  }
+  have equiv := (calc
+    (Multiset (( ofType PEmpty ) ⨿ ( ofType PEmpty )).toType → Bool)
+      ≃ _             := .arrowCongr (Equiv.prodPUnit _).symm Equiv.propEquivBool.symm
+    _ ≃ _             := .curry _ _ _
+    _ ≃ _             := equivMsRel.symm
+    _ ≃ _             := Limits.coprod_homset_equiv (X := ofType PEmpty)
+    _ ≃ (Multiset PEmpty → PUnit → Prop) × (Multiset PEmpty → PUnit → Prop) :=
+                                                    (Equiv.prodCongr equivMsRel equivMsRel)
+    _ ≃ Bool × Bool   := (Equiv.prodCongr msIso msIso)
+    _ ≃ (Bool → Bool) := (Equiv.boolArrowEquivProd Bool).symm)
+  have finF : Finite (Multiset (( ofType PEmpty ) ⨿ ( ofType PEmpty )).toType → Bool) :=
+    Finite.of_equiv (Bool → Bool) equiv.symm
+
+  have setIsEmp := ms_finite <| fintype_card_eq finF
+  have : 2 = 4 := Fintype.card_eq.mpr ⟨calc
+    Bool ≃ _          := .symm (.punitArrowEquiv Bool)
+    _ ≃ _             := .arrowCongr (Equiv.equivPUnit.{_, u} _).symm (.refl _)
+    _ ≃ (Bool → Bool) := equiv⟩
+  omega
+
+open Limits IsBinaryProduct in
+class IsExponential {𝓒} [Category 𝓒] (X Y Y_X : 𝓒) where
   prod : 𝓒 → 𝓒 → 𝓒
   fst (A B : 𝓒) : prod A B ⟶ A
   snd (A B : 𝓒) : prod A B ⟶ B
   isProd (A B : 𝓒) : IsBinaryProduct (fst A B) (snd A B)
   app : prod Y_X X ⟶ Y
   cur_ex (Z : 𝓒) (f : prod Z X ⟶ Y) : ∃! cur,
-    IsBinaryProduct.map (fst _ _) (snd _ _) (isProd _ _) cur (𝟙 X) ≫ app = f
+    map (fst _ _) (snd _ _) (isProd _ _) cur (𝟙 X) ≫ app = f
+
+namespace IsExponential
+
+open Limits
+
+class All 𝓒 [Category 𝓒] where
+  (prod exp : 𝓒 → 𝓒 → 𝓒)
+  fst (A B : 𝓒) : prod A B ⟶ A
+  snd (A B : 𝓒) : prod A B ⟶ B
+  isProd (A B : 𝓒) : IsBinaryProduct (fst A B) (snd A B)
+  equiv (X Y C : 𝓒) : (C ⟶ (exp X Y)) ≃ ((prod C X) ⟶ Y)
+
+instance {𝓒} [Category 𝓒] (a : All 𝓒) {A B}
+    : IsExponential A B (a.exp A B) where
+  prod := _; fst := _; snd := _
+  isProd := a.isProd
+  app := (a.equiv _ _ _).toFun (𝟙 _)
+  cur_ex Z f := by
+    refine ⟨(a.equiv _ _ _).invFun f, ?_, ?_⟩
+    · dsimp
+      sorry
+    · sorry
+
+
+end IsExponential
+
+def expon' (C X Y : Type _)
+    : (Multiset C → Multiset X × Y → Prop)
+    ≃ (Multiset (C ⊕ X) → Y → Prop) where
+  toFun   e l r := e (l.filterMap Sum.getLeft?) ⟨l.filterMap Sum.getRight?, r⟩
+  invFun  e := fun l ⟨ms,r⟩ => e (ms.map Sum.inr + l.map Sum.inl) r
+  left_inv e := by
+    ext a ⟨ms, b⟩
+    simp only [filterMap_add, Multiset.filterMap_map]
+    unfold Function.comp
+    simp [Multiset.filterMap_some]
+  right_inv e := by
+    ext v r
+    suffices eq : (Multiset.filterMap (fun x ↦ Option.map Sum.inr x.getRight?) v +
+      Multiset.filterMap (fun x ↦ Option.map Sum.inl x.getLeft?) v) = v by
+      simp [Multiset.map_filterMap, eq]
+    induction v using Quot.ind; rename_i v
+    simp only [Multiset.quot_mk_to_coe'', Multiset.filterMap_coe, Multiset.coe_add,
+      Multiset.coe_eq_coe]
+    induction v
+    · rfl
+    case cons hd tl ih =>
+      cases hd
+      case inr => simpa
+      simp only [Sum.getRight?_inl, Option.map_none, List.filterMap_cons_none, Sum.getLeft?_inl,
+        Option.map_some, Option.some.injEq, List.filterMap_cons_some]
+      apply List.perm_middle.trans
+      rwa [List.perm_cons]
+
+def expon (C X Y : Type _)
+    : Ent C (Multiset X × Y)
+    ≃ Ent (C ⊕ X) Y := calc
+  Ent C (Multiset X × Y)
+    ≃ (Multiset C → Multiset X × Y → Prop)  := equivMsRel
+  _ ≃ (Multiset (C ⊕ X) → Y → Prop)         := expon' C X Y
+  _ ≃ Ent (C ⊕ X) Y                         := equivMsRel.symm
+
+#exit
 
 open Limits in
 instance {X Y : EType.{u}} : IsExponential X Y (ofType <| (Multiset X.toType) × Y.toType) where
   prod := _; fst := _; snd := _
   isProd A B := isBiProdSum A B
   app := {
-    r ls v := ls.filterMap Sum.getLeft? ≠ [] → ∃ l₁ l₂ n,
+    r ls v := ∃ l₁ l₂ n,
       l₂ = ls.filterMap Sum.getRight? ∧
-      List.replicate n ⟨l₁, v⟩ = ls.filterMap Sum.getLeft? ∧ l₁ = l₂
+      List.replicate n ⟨l₁, v⟩ = ls.filterMap Sum.getLeft? ∧
+      l₁ = l₂
     perm la b := by
-      rintro h lb permab hasLefts
-      specialize h ?_
-      · intro h
-        apply hasLefts
-        simp only [List.filterMap_eq_nil_iff, Sum.getLeft?_eq_none_iff, Sum.forall, Sum.isRight_inl,
-          Bool.false_eq_true, imp_false, Prod.forall, Sum.isRight_inr, implies_true,
-          and_true] at h ⊢
-        intro a b mem
-        exact h a b <| (List.Perm.mem_iff permab.symm).mp mem
-      rcases h with ⟨l₁, _, nr, rfl, hEq, rfl⟩
+      rintro ⟨l₁, _, nr, rfl, hEq, rfl⟩ lb permab
       have hEqB := (List.perm_replicate.mpr hEq.symm).symm.trans 
         (List.Perm.filterMap Sum.getLeft? permab)
         |>.symm
@@ -743,8 +836,8 @@ instance {X Y : EType.{u}} : IsExponential X Y (ofType <| (Multiset X.toType) ×
       dsimp [BinaryFan.fst, BinaryFan.snd]
       refine Ent.ext fun a b => ⟨?_, ?_⟩
       <;> dsimp [Ent.comp]
-      · rintro ⟨w, fM, hl, hr⟩
-        simp [MsRel, snd,fst,lift] at hr
+      · rintro ⟨w, fM, ⟨_, _, _, _⟩, hr⟩
+        simp [MsRel, snd,fst,lift, CategoryStruct.comp, comp] at hr
         sorry
       · sorry
     · sorry
