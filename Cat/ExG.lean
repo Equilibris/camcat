@@ -177,6 +177,53 @@ theorem nodup_disj
       exact Multiset.disjoint_left.mp h mema memb
     · exact hNd hd
 
+theorem map_fin_cast {n m : Nat} (h : n = m)
+    : (Multiset.map (Fin.cast h) Fintype.elems.val)
+    = Fintype.elems.val := by subst h; simp
+
+theorem dite_eq_pull_left
+    {c a} {f t : _ → A} [Decidable c]
+    : ((if h : c then t h else f h) = a) = if v : c then t v = a else f v = a := by
+  grind
+
+theorem dite_eq_pull_right
+    {c a} {f t : _ → A} [Decidable c]
+    : (a = (if h : c then t h else f h)) = if v : c then a = t v else a = f v := by
+  grind
+
+theorem dite_and_dite
+    {c} {f₁ f₂ t₁ t₂ : _ → Prop} [Decidable c]
+    : ((if h : c then t₁ h else f₁ h) ∧ if h : c then t₂ h else f₂ h)
+    = if v : c then t₁ v ∧ t₂ v else f₁ v ∧ f₂ v := by
+  grind
+
+theorem multiset_map_sum {n : Nat}
+    (sel : Fin n → Multiset A)
+    (f : A → B)
+    : (∑ x, Multiset.map f (sel x)) = Multiset.map f (∑ x, sel x) := by
+  unfold Finset.sum
+  generalize (Finset.univ.val : Multiset (Fin n)) = z
+  simp
+
+theorem ms_eq_lift {a b : Multiset A} (eq : a = b) : a.toList.Perm b.toList := 
+  eq ▸ List.Perm.refl a.toList
+
+theorem ms_toList_add {a b : Multiset A} : (a + b).toList.Perm (a.toList ++ b.toList) := by
+  induction a using Quot.ind; rename_i a
+  induction b using Quot.ind; rename_i b
+  simp only [Multiset.quot_mk_to_coe'', Multiset.coe_add]
+  refine Perm_ofList_toList.symm.trans <| List.Perm.append ?_ ?_
+  <;> exact Perm_ofList_toList
+
+theorem ms_sum_toList_Perm
+    : (ls : List (Multiset A)) → ls.sum.toList.Perm (ls.map Multiset.toList).flatten
+  | [] => by simp
+  | hd :: tl => by
+    simp only [List.sum_cons, List.map_cons, List.flatten_cons]
+    apply ms_toList_add.trans
+    refine List.Perm.append (ms_eq_lift rfl) ?_
+    exact ms_sum_toList_Perm _
+
 end lemmas
 
 section Ex3
@@ -251,6 +298,10 @@ def fin_preimage {A B} [fta : Fintype A] [DecidableEq B]
 namespace fin_preimage
 
 variable {A B C : Type _} [fta : Fintype A]
+
+def nodup [DecidableEq B] {f : A → B} {v}
+    : (fin_preimage f v).Nodup :=
+  Multiset.Nodup.filter _ fta.elems.nodup
 
 -- They compose in interesting ways over bijections.
 
@@ -413,6 +464,35 @@ theorem sum_all
   simp [Fintype.complete] at hma hmb
   exact h <| hma.symm.trans hmb
 
+-- I see how useful this is now in hinesight but sadly I did not come up with this earlier.
+-- Slightly silly.
+theorem comp
+    {v} (f : A → B) (g : B → C) [DecidableEq C] [ftb : Fintype B] [DecidableEq B]
+    : fin_preimage (g ∘ f) v
+    = ((fin_preimage g v).bind (fin_preimage f ·)) := by
+  have : DecidableEq A := Classical.typeDecidableEq A
+  dsimp [fin_preimage]
+  apply Multiset.ext.mpr
+  intro a
+  simp only [Multiset.count_filter, Multiset.count_eq_of_nodup fta.elems.nodup, Finset.mem_val,
+    fta.complete, ↓reduceIte]
+  symm
+  split <;> rename_i h
+  case isFalse => simpa [Fintype.complete]
+  rw [Multiset.count_eq_of_nodup]
+  · simp [h, Fintype.complete]
+  simp only [Multiset.nodup_bind, Multiset.mem_filter, Finset.mem_val, Fintype.complete, true_and]
+  constructor
+  · rintro a' _
+    exact Multiset.Nodup.filter _ Fintype.elems.nodup
+  refine Multiset.Nodup.pairwise ?_ ?nd
+  case nd => exact Multiset.Nodup.filter _ Fintype.elems.nodup
+  rintro a - b - neq
+  apply Multiset.disjoint_left.mpr ?_
+  intro z xmem ymem
+  simp only [Multiset.mem_filter, Finset.mem_val, Fintype.complete, true_and] at xmem ymem
+  exact neq (xmem.symm.trans ymem)
+
 end fin_preimage
 
 -- Composition was an absolute pain.
@@ -466,33 +546,6 @@ def comp'
     F (lpart.map CompObj.b) c
     ∧ ls = (lpart.map CompObj.la).sum
 
-def multiset_map_sum {n : Nat}
-    (sel : Fin n → Multiset A)
-    (f : A → B)
-    : (∑ x, Multiset.map f (sel x)) = Multiset.map f (∑ x, sel x) := by
-  unfold Finset.sum
-  generalize (Finset.univ.val : Multiset (Fin n)) = z
-  simp
-
-def ms_eq_lift {a b : Multiset A} (eq : a = b) : a.toList.Perm b.toList := 
-  eq ▸ List.Perm.refl a.toList
-
-def ms_toList_add {a b : Multiset A} : (a + b).toList.Perm (a.toList ++ b.toList) := by
-  induction a using Quot.ind; rename_i a
-  induction b using Quot.ind; rename_i b
-  simp only [Multiset.quot_mk_to_coe'', Multiset.coe_add]
-  refine Perm_ofList_toList.symm.trans <| List.Perm.append ?_ ?_
-  <;> exact Perm_ofList_toList
-
-def ms_sum_toList_Perm
-    : (ls : List (Multiset A)) → ls.sum.toList.Perm (ls.map Multiset.toList).flatten
-  | [] => by simp
-  | hd :: tl => by
-    simp only [List.sum_cons, List.map_cons, List.flatten_cons]
-    apply ms_toList_add.trans
-    refine List.Perm.append (ms_eq_lift rfl) ?_
-    exact ms_sum_toList_Perm _
-
 noncomputable def compObj_mapper {E : Multiset A → B → Prop}
     : (lpart : List (CompObj E))
     → Fin (List.map (Multiset.toList ∘ CompObj.la) lpart).flatten.length
@@ -524,26 +577,6 @@ theorem filter_fin_to_map {n m : Nat} (h : n ≤ m)
     simp
   · rintro _ rfl
     simp at h
-
-theorem map_fin_cast {n m : Nat} (h : n = m)
-    : (Multiset.map (Fin.cast h) Fintype.elems.val)
-    = Fintype.elems.val := by subst h; simp
-
-theorem dite_eq_pull_left
-    {c a} {f t : _ → A} [Decidable c]
-    : ((if h : c then t h else f h) = a) = if v : c then t v = a else f v = a := by
-  grind
-
-theorem dite_eq_pull_right
-    {c a} {f t : _ → A} [Decidable c]
-    : (a = (if h : c then t h else f h)) = if v : c then a = t v else a = f v := by
-  grind
-
-theorem dite_and_dite
-    {c} {f₁ f₂ t₁ t₂ : _ → Prop} [Decidable c]
-    : ((if h : c then t₁ h else f₁ h) ∧ if h : c then t₂ h else f₂ h)
-    = if v : c then t₁ v ∧ t₂ v else f₁ v ∧ f₂ v := by
-  grind
 
 theorem fintype_split
     {n m : Nat}
@@ -687,7 +720,7 @@ theorem comp_iff_comp'
       exact (Multiset.coe_count v a).symm
   · rintro ⟨lpart, hl, hr⟩
     induction lpart using Quot.ind; rename_i lpart
-    simp [MsRel] at hl hr
+    simp only [MsRel, Multiset.quot_mk_to_coe'', Multiset.map_coe, Multiset.sum_coe] at hl hr
     /- have := (List.Perm.symm Perm_ofList_toList) -/
     have : a.Perm (List.map (Multiset.toList ∘ CompObj.la) lpart).flatten := by 
       rw [←List.map_map]
@@ -708,7 +741,9 @@ theorem comp_iff_comp'
     intro v
     rw [fin_preimage.comp_bij' (Fin.cast _) _ (fin_cast_linv _) (fin_cast_rinv _)]
     rw [fin_preimage.comp_bij' _ _ sil sir]
-    simp [List.apply_sig]
+    simp only [List.apply_sig, Multiset.map_map, Function.comp_apply, List.length_flatten,
+      List.map_map, List.get_eq_getElem, Fin.getElem_fin, List.getElem_ofFn, Fin.cast_mk,
+      Fin.coe_cast, Fin.eta, List.getElem_map]
     conv => lhs; lhs; intro v; arg 2; rw [sir v]
     change E.MsRel (Multiset.map (List.get _) _) _
     rw [compObj_mapper.fin_preimage_eq]
@@ -804,52 +839,48 @@ theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
   · intro h
     use a, id
     simp [h, MsRel]
-    /- refine ⟨a.map (fun a => ⟨{a}, a, ⟨_, rfl, rfl⟩⟩), ?_, ?_⟩ -/
-    /- · simpa -/
-    /- · simp -/
+
+theorem comp'_assoc' {W X Y Z} (f : Multiset W → X → Prop) g (h : Multiset Y → Z → Prop)
+    {a b} : comp' (comp' f g) h a b → comp' f (comp' g h) a b:= by
+  rintro ⟨lwp, hr, rfl⟩
+  refine ⟨(lwp.map (fun v => Classical.choose (CompObj.r v))).sum, ?_, ?_⟩
+  · refine ⟨lwp.map (fun v => CompObj.mk _ _ (Classical.choose_spec (CompObj.r v)).left), ?_, ?_⟩
+    · rw [Multiset.map_map]
+      exact hr
+    · simp [Multiset.map_map]
+  · simp
+    clear *-
+    induction lwp using Quot.ind; rename_i lwp
+    induction lwp
+    · simp
+    case cons hd tl ih =>
+      simp only [Multiset.quot_mk_to_coe'', Multiset.map_coe, Multiset.sum_coe, List.map_cons,
+        List.sum_cons, Multiset.sum_add] at ih ⊢
+      rw [←(Classical.choose_spec hd.r).right, ←ih]
+
+theorem comp_assoc' {W X Y Z} (f : Ent W X) (g : Ent X Y) (h : Ent Y Z)
+    {a b} : (f ⊛ g ⊛ h).r a b → ((f ⊛ g) ⊛ h).r a b := by
+  rintro ⟨lx, fMap, ⟨lym, gMap, hh, hhAll⟩, hyAll⟩
+  refine ⟨lym, gMap ∘ fMap, hh, fun iLym => ?_⟩
+  change (equivMsRel.toFun (f ⊛ g)) _ _
+  rw [comp_iff_comp', equivMsRel.right_inv]
+  dsimp [equivMsRel]
+  specialize hhAll iLym
+  refine ⟨(fin_preimage gMap iLym).map fun v => { la := _, b := _, r := hyAll v } , ?_, ?_⟩
+  · simp only [Fin.getElem_fin, Multiset.map_map, Function.comp_apply]
+    exact hhAll
+  · rw [fin_preimage.comp]
+    simp
+    change _ = (fin_preimage gMap iLym).bind _
+    rw [Multiset.map_bind]
 
 theorem comp_assoc {W X Y Z} (f : Ent W X) (g : Ent X Y) (h : Ent Y Z)
     : (f ⊛ g) ⊛ h = f ⊛ g ⊛ h := by
   ext a b
   constructor
-  · rintro ⟨lwp, fMap, hr, hfa⟩
-    simp only [MsRel, comp, Fin.getElem_fin, exists_and_left] at hfa
-    refine ⟨?_, ?_, ?_⟩
-    stop
-    refine ⟨(lwp.map (fun v => Classical.choose (CompObj.r v))).sum, ?_, ?_⟩
-    · refine ⟨lwp.map (fun v => CompObj.mk _ _ (Classical.choose_spec (CompObj.r v)).left), ?_, ?_⟩
-      · rw [Multiset.map_map]
-        exact hr
-      · simp [Multiset.map_map]
-    · simp
-      clear *-
-      induction lwp using Quot.ind; rename_i lwp
-      induction lwp
-      · simp
-      case cons hd tl ih =>
-        simp only [Multiset.quot_mk_to_coe'', Multiset.map_coe, Multiset.sum_coe, List.map_cons,
-          List.sum_cons, Multiset.sum_add] at ih ⊢
-        rw [←(Classical.choose_spec hd.r).right, ←ih]
-  · rintro ⟨lx, fMap, ⟨lym, gMap, hh, hhAll⟩, hyAll⟩
-    refine ⟨lym, gMap ∘ fMap, hh, fun iLym => ?_⟩
-    refine ⟨lx, ?_, ?_⟩
-    simp only [Fin.getElem_fin, Multiset.length_toList, Multiset.card_map]
-    stop
-    rintro ⟨lwf, ⟨lwg, hlwg, gperm⟩, rfl⟩
-    refine ⟨?_, ?_, ?_⟩
-    · sorry
-    · sorry
-    · sorry
-    stop
-    refine ⟨lwp, lw'', by simpa, rel, ?_⟩
-    have fa := List.forall₂_iff_get.mp fa
-    have fa' := List.forall₂_iff_get.mp fa'
-    apply List.forall₂_iff_get.mpr ⟨?_, ?_⟩
-    · have := List.Perm.length_eq wperm
-      have := List.Perm.length_eq wperm'
-      sorry
-
-    · sorry
+  · simp only [comp_iff_comp', Equiv.toFun_as_coe, Equiv.invFun_as_coe, Equiv.apply_symm_apply]
+    exact comp'_assoc' _ _ _
+  · exact comp_assoc' _ _ _
 
 end Ent
 
@@ -1041,42 +1072,6 @@ example (hCp : HasBinaryCoproducts EType) : False := by
     _ ≃ (Bool → Bool) := equiv⟩
   omega
 
-open Limits IsBinaryProduct in
-class IsExponential {𝓒} [Category 𝓒] (X Y Y_X : 𝓒) where
-  prod : 𝓒 → 𝓒 → 𝓒
-  fst (A B : 𝓒) : prod A B ⟶ A
-  snd (A B : 𝓒) : prod A B ⟶ B
-  isProd (A B : 𝓒) : IsBinaryProduct (fst A B) (snd A B)
-  app : prod Y_X X ⟶ Y
-  cur_ex (Z : 𝓒) (f : prod Z X ⟶ Y) : ∃! cur,
-    map (fst _ _) (snd _ _) (isProd _ _) cur (𝟙 X) ≫ app = f
-
-namespace IsExponential
-
-open Limits
-
-class All 𝓒 [Category 𝓒] where
-  (prod exp : 𝓒 → 𝓒 → 𝓒)
-  fst (A B : 𝓒) : prod A B ⟶ A
-  snd (A B : 𝓒) : prod A B ⟶ B
-  isProd (A B : 𝓒) : IsBinaryProduct (fst A B) (snd A B)
-  equiv (X Y C : 𝓒) : (C ⟶ (exp X Y)) ≅ ((prod C X) ⟶ Y)
-
-instance {𝓒} [Category 𝓒] (a : All 𝓒) {A B}
-    : IsExponential A B (a.exp A B) where
-  prod := _; fst := _; snd := _
-  isProd := a.isProd
-  app := (a.equiv _ _ _).hom (𝟙 _)
-  cur_ex Z f := by
-    refine ⟨(a.equiv _ _ _).inv f, ?_, ?_⟩
-    · 
-      dsimp [IsBinaryProduct.map]
-      sorry
-    · 
-      sorry
-
-end IsExponential
-
 def expon' (C X Y : Type _)
     : (Multiset C → Multiset X × Y → Prop)
     ≃ (Multiset (C ⊕ X) → Y → Prop) where
@@ -1112,47 +1107,6 @@ def expon (C X Y : Type _)
     ≃ (Multiset C → Multiset X × Y → Prop)  := equivMsRel
   _ ≃ (Multiset (C ⊕ X) → Y → Prop)         := expon' C X Y
   _ ≃ Ent (C ⊕ X) Y                         := equivMsRel.symm
-
-#exit
-
-open Limits in
-instance {X Y : EType.{u}} : IsExponential X Y (ofType <| (Multiset X.toType) × Y.toType) where
-  prod := _; fst := _; snd := _
-  isProd A B := isBiProdSum A B
-  app := {
-    r ls v := ∃ l₁ l₂ n,
-      l₂ = ls.filterMap Sum.getRight? ∧
-      List.replicate n ⟨l₁, v⟩ = ls.filterMap Sum.getLeft? ∧
-      l₁ = l₂
-    perm la b := by
-      rintro ⟨l₁, _, nr, rfl, hEq, rfl⟩ lb permab
-      have hEqB := (List.perm_replicate.mpr hEq.symm).symm.trans 
-        (List.Perm.filterMap Sum.getLeft? permab)
-        |>.symm
-        |> List.perm_replicate.mp
-        |>.symm
-      refine ⟨_, _ ,nr, rfl, hEqB, ?_⟩
-      simp [List.Perm.filterMap Sum.getRight? permab]
-  }
-  cur_ex Z f := by
-    refine ⟨
-      {
-        r v s := ∃ y z, v = [z] ∧ f.r (s.1.toList.map (Sum.inr)) y
-        perm := by
-          sorry
-      },
-      ?holds,
-      ?uniq
-    ⟩
-    · change Ent.comp (lift _ _ _ _) _ = _
-      dsimp [BinaryFan.fst, BinaryFan.snd]
-      refine Ent.ext fun a b => ⟨?_, ?_⟩
-      <;> dsimp [Ent.comp]
-      · rintro ⟨w, fM, ⟨_, _, _, _⟩, hr⟩
-        simp [MsRel, snd,fst,lift, CategoryStruct.comp, comp] at hr
-        sorry
-      · sorry
-    · sorry
 
 end EType
 
