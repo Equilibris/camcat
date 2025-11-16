@@ -37,6 +37,7 @@ section lemmas
 -- This section mainly concerns a collection of lemmas that are needed for the later proofs.
 -- They could (and will be after this assessment) be parts of mathlib.
 -- All this is basically just noise.
+-- Feel free to skip 200 lines
 
 theorem fin_cast_linv {n m} (p : n = m) : Function.LeftInverse (Fin.cast p.symm) (Fin.cast p) :=
   fun _ => rfl
@@ -228,14 +229,13 @@ end lemmas
 
 section Ex3
 
--- I decided to use a definition closer to the one in the question after trying many alternatives.
--- There were neumerous problems with proving assoc of composition,
--- but this defn seemed to have the least problems.
+-- I ended up using two definitions and transforming between them.
+-- The reasoning for this is I found the easiest way to prove assoc was using both.
 structure Ent (A B : Type u) where
   r : List A → B → Prop
   -- We use the same change as we did in Ex2.
   -- Later we do actually benefit from being able to extract a σ though.
-  perm : ∀ l₁ b, r l₁ b → ∀ l₂, l₁.Perm l₂ → r l₂ b
+  perm : ∀ {l₁ b}, r l₁ b → ∀ {l₂}, l₁.Perm l₂ → r l₂ b
 
 namespace Ent
 
@@ -244,14 +244,14 @@ def MsRel (x : Ent A B) (ms : Multiset A) (bv : B) : Prop :=
 
 def ofMsRel (R : Multiset A → B → Prop) : Ent A B where
   r ls b := R ls b
-  perm l₁ b R l₂ lperm := by
+  perm {l₁ b} R {l₂} lperm := by
     have : Multiset.ofList l₂ = Multiset.ofList l₁ := Multiset.coe_eq_coe.mpr lperm.symm
     rw [this]
     exact R
 
 theorem msRel_iff_r_toList {l b} {E : Ent A B} : E.r l.toList b = E.MsRel l b := by rfl
 theorem msRel_coe_iff_r {l b} {E : Ent A B} : E.r l b = E.MsRel l b := by
-  refine propext ⟨?_, ?_⟩ <;> refine fun h => E.perm _ _ h _ ?_
+  refine propext ⟨?_, ?_⟩ <;> refine fun h => E.perm h ?_
   · exact Perm_ofList_toList
   · exact Perm_ofList_toList.symm
 
@@ -271,7 +271,7 @@ def equivMsRel : (Ent A B) ≃ (Multiset A → B → Prop) where
     ext a b
     constructor
     <;> rintro h
-    <;> apply e.perm _ _ h
+    <;> apply e.perm h
     <;> apply Multiset.coe_eq_coe.mp
     <;> simp
   right_inv v := funext fun a => funext fun b => by
@@ -280,7 +280,7 @@ def equivMsRel : (Ent A B) ≃ (Multiset A → B → Prop) where
 -- Relational lifting is exacly as given
 abbrev LiftR (R : A → B → Prop) : Ent A B where
   r a b := ∃ w, a = [w] ∧ R w b
-  perm l b := by
+  perm {l b} := by
     rintro ⟨w, rfl, rwb⟩
     simpa
 
@@ -513,7 +513,7 @@ def comp (E : Ent A B) (F : Ent B C) : Ent A C where
       ∧ ∀ v : Fin lpart.length,
         E.MsRel (fin_preimage f v |>.map (ls[·])) lpart[v]
   perm := by
-    rintro l₁ b ⟨lpart, fMap, fHolds, mapping⟩ l₂ perm 
+    rintro l₁ b ⟨lpart, fMap, fHolds, mapping⟩ l₂ perm
     obtain ⟨⟨s, v⟩, rfl⟩ := List.Perm_apply_sig perm
     have p := (@List.apply_sig_length A l₁ ⟨s, v⟩)
     refine ⟨lpart, (fMap ∘ s) ∘ (Fin.cast p), fHolds, ?_⟩
@@ -705,7 +705,7 @@ theorem comp_iff_comp'
     · simp only [Fin.getElem_fin, Multiset.map_coe, List.map_ofFn]
       unfold Function.comp
       simp only [MsRel, List.ofFn_getElem]
-      exact F.perm _ _ hl _ Perm_ofList_toList
+      exact F.perm hl Perm_ofList_toList
     · apply Multiset.ext.mpr
       simp only [Multiset.coe_count, Fin.getElem_fin, Multiset.map_coe, List.map_ofFn,
         Multiset.sum_coe, List.sum_ofFn, Function.comp_apply, Multiset.count_sum']
@@ -735,7 +735,7 @@ theorem comp_iff_comp'
     refine ⟨
       _, 
       (compObj_mapper _ ∘ s) ∘ Fin.cast List.apply_sig_length, --compObj_mapper _ ∘ Fin.cast hACast,
-      F.perm _ _ hl _ (List.Perm.symm Perm_ofList_toList),
+      F.perm hl (List.Perm.symm Perm_ofList_toList),
       ?_
     ⟩
     intro v
@@ -809,7 +809,7 @@ theorem Ax_comp (E : Ent A B) : Ax A ⊛ E = E := by
     simp only [MsRel, Fin.getElem_fin, Multiset.toList_eq_singleton_iff, Multiset.map_eq_singleton,
       exists_eq_right] at h
 
-    apply E.perm _ _ r
+    apply E.perm r
 
     have fBij : Function.Bijective f := fin_preimage.exists_sig_iff_bijective.mp
       fun v => ⟨Classical.choose (h v), (Classical.choose_spec (h v)).1⟩
@@ -903,7 +903,7 @@ open EType Ent
 instance isTermEmpt : Limits.IsTerminal (ofType PEmpty) :=
   .ofUniqueHom (fun _Y => {
     r _h _l := False
-    perm _l _b f := f.elim
+    perm {_l _b} f := f.elim
   }) fun _x _m => Ent.ext fun _a b => b.elim
 
 instance : Limits.HasTerminal EType := isTermEmpt.hasTerminal
@@ -912,11 +912,11 @@ def not_initial (v : Limits.HasInitial EType.{u}) : False :=
   have := ofType PUnit |> Limits.uniqueFromInitial |>.uniq
   let alwaysTrue := {
     r _ _ := True
-    perm _ _ _ _ _ := .intro
+    perm _ _ _ := .intro
   }
   let alwaysFalse := {
     r _ _ := False
-    perm _ _ := False.elim
+    perm := False.elim
   }
   have := (this alwaysTrue).trans (this alwaysFalse).symm
 
@@ -924,7 +924,7 @@ def not_initial (v : Limits.HasInitial EType.{u}) : False :=
 
 def fst (A B : EType.{u}) : ofType (A.toType ⊕ B.toType) ⟶ A where
   r a b := a = [.inl b]
-  perm := by 
+  perm := by
     rintro _ b' rfl a perm
     obtain rfl := List.singleton_perm.mp perm
     rfl
@@ -943,9 +943,9 @@ def lift
   r tl := fun
     | .inl v => f.r tl v
     | .inr v => s.r tl v
-  perm := fun 
-    | l₁, .inl v, (h : f.r _ _), l₂, perm => f.perm _ _ h _ perm
-    | l₁, .inr v, (h : s.r _ _), l₂, perm => s.perm _ _ h _ perm
+  perm {_ b} h _ perm := match b with
+    | .inl _ => f.perm h perm
+    | .inr _ => s.perm h perm
 
 instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A B) :=
   .ofUniqueHom (lift A B)
@@ -959,14 +959,14 @@ instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A
           Fin.zero_eta, Fin.isValue, fin_preimage.unit_inv] at hr
         change f.r (Multiset.map a.get Fintype.elems.val).toList b at hr
         rw [multiset_map_all] at hr
-        apply f.perm _ _ hr _ Perm_ofList_toList.symm
+        apply f.perm hr Perm_ofList_toList.symm
       · intro hr
         refine ⟨_, (fun _ => ⟨0, by simp⟩), rfl, fun | ⟨0, _⟩ => ?_⟩
         simp only [List.getElem_cons_zero, List.length_cons, List.length_nil, Nat.reduceAdd,
           Fin.zero_eta, Fin.isValue, fin_preimage.unit_inv]
         change f.r (Multiset.map a.get Fintype.elems.val).toList b
         rw [multiset_map_all]
-        apply f.perm _ _ hr _ Perm_ofList_toList
+        apply f.perm hr Perm_ofList_toList
       )
     (fun {T} f g => by
       refine ext fun a b => ?_
@@ -978,14 +978,14 @@ instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A
           Fin.zero_eta, Fin.isValue, fin_preimage.unit_inv] at hr
         change g.r (Multiset.map a.get Fintype.elems.val).toList b at hr
         rw [multiset_map_all] at hr
-        apply g.perm _ _ hr _ Perm_ofList_toList.symm
+        apply g.perm hr Perm_ofList_toList.symm
       · intro hr
         refine ⟨_, (fun _ => ⟨0, by simp⟩), rfl, fun | ⟨0, _⟩ => ?_⟩
         simp only [List.getElem_cons_zero, List.length_cons, List.length_nil, Nat.reduceAdd,
           Fin.zero_eta, Fin.isValue, fin_preimage.unit_inv]
         change g.r (Multiset.map a.get Fintype.elems.val).toList b
         rw [multiset_map_all]
-        apply g.perm _ _ hr _ Perm_ofList_toList
+        apply g.perm hr Perm_ofList_toList
       )
     fun {T} f s t => by
       rintro rfl rfl
@@ -1000,7 +1000,7 @@ instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A
           fin_preimage.unit_inv, List.getElem_cons_zero]
         change t.r (Multiset.map a.get Fintype.elems.val).toList _
         rw [multiset_map_all]
-        apply t.perm _ _ h _ Perm_ofList_toList
+        apply t.perm h Perm_ofList_toList
       case ir.mp =>
         intro h
         refine ⟨_, fun _ => ⟨0, by simp⟩, rfl, fun | ⟨0, _⟩ => ?_⟩
@@ -1008,7 +1008,7 @@ instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A
           fin_preimage.unit_inv, List.getElem_cons_zero]
         change t.r (Multiset.map a.get Fintype.elems.val).toList _
         rw [multiset_map_all]
-        apply t.perm _ _ h _ Perm_ofList_toList
+        apply t.perm h Perm_ofList_toList
 
       case il.mpr =>
         rintro ⟨_, f, rfl, fa⟩
@@ -1017,7 +1017,7 @@ instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A
           fin_preimage.unit_inv, List.getElem_cons_zero] at fa
         change t.r (Multiset.map a.get Fintype.elems.val).toList _ at fa
         rw [multiset_map_all] at fa
-        apply t.perm _ _ fa _ Perm_ofList_toList.symm
+        apply t.perm fa Perm_ofList_toList.symm
       case ir.mpr =>
         rintro ⟨_, f, rfl, fa⟩
         specialize fa ⟨0, by simp⟩
@@ -1025,7 +1025,7 @@ instance isBiProdSum (A B : EType.{u}) : Limits.IsBinaryProduct (fst A B) (snd A
           fin_preimage.unit_inv, List.getElem_cons_zero] at fa
         change t.r (Multiset.map a.get Fintype.elems.val).toList _ at fa
         rw [multiset_map_all] at fa
-        apply t.perm _ _ fa _ Perm_ofList_toList.symm
+        apply t.perm fa Perm_ofList_toList.symm
 
 instance (A B : EType) : Limits.HasBinaryProduct A B :=
   Limits.IsBinaryProduct.hasBinaryProduct _ _ (isBiProdSum  _ _)
@@ -1107,6 +1107,10 @@ def expon (C X Y : Type _)
     ≃ (Multiset C → Multiset X × Y → Prop)  := equivMsRel
   _ ≃ (Multiset (C ⊕ X) → Y → Prop)         := expon' C X Y
   _ ≃ Ent (C ⊕ X) Y                         := equivMsRel.symm
+
+/-- info: 'CategoryTheory.EType.expon' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms expon
 
 end EType
 
