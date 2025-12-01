@@ -12,14 +12,12 @@ instance : Category (Type u) where
   id v := id
   comp f g := g ∘ f
 
+instance {X : Sigma Preorder} : Preorder X.fst := X.snd
+
 instance preOrd : Category (Sigma Preorder) where
-  Hom := fun ⟨s, is⟩ ⟨t, it⟩ => (f : s → t) ×' Monotone f
+  Hom := fun s t => (f : s.fst → t.fst) ×' Monotone f
   id v := ⟨id, fun _ _ => id⟩
-  comp := fun {a b c} ⟨f, fm⟩ ⟨g, gm⟩ =>
-    have ⟨a, ia⟩ := a
-    have ⟨b, ib⟩ := b
-    have ⟨c, ic⟩ := c
-    ⟨g ∘ f, Monotone.comp gm fm⟩
+  comp := fun f g => ⟨g.fst ∘ f.fst, Monotone.comp g.snd f.snd⟩
 
 instance poOrd : Category (Sigma PartialOrder) where
   Hom := fun ⟨s, is⟩ ⟨t, it⟩ => (f : s → t) ×' Monotone f
@@ -44,10 +42,11 @@ instance hmon : Category (Sigma Monoid) where
     have ⟨c, ic⟩ := c
     (MonoidHom.comp (g : _ →* _) (f : _ →* _) : _ →* _)
 
-instance emon {α} : Category (Monoid α) where
-  Hom := fun s t => @MonoidHom α α s.toMulOneClass t.toMulOneClass
-  id  := fun X => MonoidHom.id α
-  comp := fun {X Y Z} f g => @MonoidHom.comp _ _ _
-    X.toMulOneClass Y.toMulOneClass Z.toMulOneClass g f
+instance {X : Sigma Monoid} : Monoid X.fst := X.snd
 
+/- instance emon {α} : Category (Monoid α) where -/
+/-   Hom := fun s t => @MonoidHom α α s.toMulOneClass t.toMulOneClass -/
+/-   id  := fun X => MonoidHom.id α -/
+/-   comp := fun {X Y Z} f g => @MonoidHom.comp _ _ _ -/
+/-     X.toMulOneClass Y.toMulOneClass Z.toMulOneClass g f -/
 

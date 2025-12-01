@@ -7,6 +7,7 @@ import Mathlib.Algebra.Group.Defs
 import Mathlib.CategoryTheory.Category.Basic
 import Mathlib.CategoryTheory.Category.Cat.Terminal
 import Mathlib.CategoryTheory.Iso
+import Mathlib.CategoryTheory.Closed.Cartesian
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 import Cat.L1
 import Cat.L2Live
@@ -686,9 +687,138 @@ noncomputable instance : Distributive (Type u) where
 
 end
 
-variable [Category 𝓒] [HasBinaryProducts 𝓒] [HasBinaryCoproducts 𝓒] [Distributive 𝓒]
-
 end ex2
 
 end coproduct
+
+section alg
+
+open scoped MonoidalCategory
+
+variable [CartesianMonoidalCategory 𝓒]
+
+instance prodIbp {A B : Type u} : IsBinaryProduct (P := A × B) Prod.fst Prod.snd :=
+  .ofUniqueHom
+    (fun f g x => ⟨f x, g x⟩)
+    (fun f g => rfl)
+    (fun f g => rfl)
+    (fun f g m => by rintro rfl rfl; rfl)
+
+instance : CartesianMonoidalCategory (Type u) where
+  tensorUnit := PUnit
+  tensorObj := Prod
+
+  fst _ _ := Prod.fst
+  snd _ _ := Prod.snd
+
+  tensorProductIsBinaryProduct _ _ := prodIbp
+  isTerminalTensorUnit := .ofUniqueHom (fun _ _ => .unit) (fun _ _ => rfl)
+
+  whiskerLeft X {Y₁ Y₂} m := Prod.map id m
+  whiskerRight {Y₁ Y₂} m X := Prod.map m id
+
+  associator X Y Z := {
+    hom := fun ⟨⟨x,y⟩, z⟩ => ⟨x,y,z⟩,
+    inv := fun ⟨x,y,z⟩ => ⟨⟨x,y⟩, z⟩
+  }
+  leftUnitor  X := { hom := fun ⟨.unit, x⟩ => x, inv := fun x => ⟨.unit, x⟩ }
+  rightUnitor X := { hom := fun ⟨x, .unit⟩ => x, inv := fun x => ⟨x, .unit⟩ }
+
+class MonoidalObj (M : 𝓒) where
+  unit : 𝟙_ 𝓒 ⟶ M
+  m : (M ⊗ M) ⟶ M
+
+  assoc : (m ▷ M) ≫ m = (α_ M M M).hom ≫ (M ◁ m) ≫ m
+  runit : (M ◁ unit) ≫ m = (ρ_ M).hom
+  lunit : (unit ▷ M) ≫ m = (λ_ M).hom
+
+section a
+
+instance mon_is_obj {M} [Monoid M] : MonoidalObj M where
+  unit _ := 1
+  m := fun ⟨a, b⟩ => a * b
+  assoc := funext fun ⟨⟨a, b⟩, c⟩ => mul_assoc a b c
+  lunit := funext fun ⟨_, b⟩ => one_mul b
+  runit := funext fun ⟨a, _⟩ => mul_one a
+
+open MonoidalCategoryStruct
+instance obj_is_mon {M} [mo : MonoidalObj M] : Monoid M where
+  mul a b:= mo.m ⟨a, b⟩
+  one := mo.unit .unit
+  mul_assoc a b c := funext_iff.mp mo.assoc ⟨⟨a,b⟩, c⟩
+  one_mul a       := funext_iff.mp mo.lunit ⟨.unit, a⟩
+  mul_one a       := funext_iff.mp mo.runit ⟨a, .unit⟩
+
+instance amon_is_obj {M} [AddMonoid M] : MonoidalObj M where
+  unit _ := 0
+  m := fun ⟨a, b⟩ => a + b
+  assoc := funext fun ⟨⟨a, b⟩, c⟩ => add_assoc a b c
+  lunit := funext fun ⟨_, b⟩ => zero_add b
+  runit := funext fun ⟨a, _⟩ => add_zero a
+
+open MonoidalCategoryStruct
+instance obj_is_amon {M} [mo : MonoidalObj M] : AddMonoid M where
+  add a b:= mo.m ⟨a, b⟩
+  zero := mo.unit .unit
+  add_assoc a b c := funext_iff.mp mo.assoc ⟨⟨a,b⟩, c⟩
+  zero_add a       := funext_iff.mp mo.lunit ⟨.unit, a⟩
+  add_zero a       := funext_iff.mp mo.runit ⟨a, .unit⟩
+  nsmul n m := n.repeat (mo.m ⟨·, m⟩) (mo.unit .unit)
+
+end a
+
+section b
+
+class MonoidalObj.Hom [ma : MonoidalObj A] [mb : MonoidalObj B] (v : A ⟶ B) where
+  unit : unit ≫ v = unit
+  hom  : ma.m ≫ v = (v ⊗ₘ v) ≫ mb.m
+
+instance {A B : Type u} [Monoid A] [Monoid B] (f : A →* B)
+    : MonoidalObj.Hom (ma := mon_is_obj) (f.toFun : A → B) where
+  unit := funext fun _ => MonoidHom.map_one f
+  hom := funext fun ⟨a, b⟩ => (MonoidHom.map_mul f a b)
+
+end b
+
+instance : SimpleCartesianMonoidalCategory (Sigma Monoid) where
+  tensorUnit := ⟨PUnit, inferInstance⟩
+  isTerminalTensorUnit := .ofUniqueHom
+    (fun _ => { toFun := fun _ => .unit, map_one' := rfl, map_mul' x y := rfl })
+    fun _ _ => rfl
+
+  tensorObj A B := ⟨A.fst × B.fst, inferInstance⟩
+
+  fst X Y := MonoidHom.fst X.1 Y.1
+  snd X Y := MonoidHom.snd X.1 Y.1
+
+  tensorProductIsBinaryProduct X Y := .ofUniqueHom
+    (fun f g => MonoidHom.prod f g)
+    (fun _ _ => rfl)
+    (fun _ _ => rfl)
+    (fun _ _ m => by rintro rfl rfl; rfl)
+
+#check CommSemigroup
+
+instance {X} [CommMonoid X] : MonoidalObj (⟨X, inferInstance⟩ : Sigma Monoid) where
+  unit := {
+    toFun := fun _ => 1
+    map_mul' x y := (mul_one 1).symm
+    map_one' := rfl
+  }
+  m := {
+    toFun := fun ⟨x, y⟩ => x * y
+    map_one' := mul_one _
+    map_mul' := fun ⟨a,b⟩ ⟨x,y⟩ => calc
+        a * x * (b * y)
+          = a * (x * (b * y)) := by simp [mul_assoc]
+        _ = a * ((b * y) * x) := by rw [mul_comm x]
+        _ = a * (b * (y * x)) := by simp [mul_assoc]
+        _ = a * (b * (x * y)) := by rw [mul_comm x y]
+        _ = a * b * (x * y)   := by simp [mul_assoc]
+  }
+  assoc := MonoidHom.ext fun _ => mul_assoc _ _ _
+  runit := MonoidHom.ext fun _ => mul_one _
+  lunit := MonoidHom.ext fun _ => one_mul _
+
+end alg
 

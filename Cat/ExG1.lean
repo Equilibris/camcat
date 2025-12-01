@@ -11,9 +11,6 @@ import Mathlib.CategoryTheory.Iso
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 import Mathlib.Logic.Basic
 import Mathlib.Logic.Relation
-import Cat.L1
-import Cat.L2Live
-import Cat.Product
 
 universe u v
 

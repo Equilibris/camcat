@@ -11,8 +11,6 @@ import Mathlib.CategoryTheory.Iso
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 import Mathlib.Logic.Basic
 import Mathlib.Logic.Relation
-import Cat.L1
-import Cat.L2Live
 import Cat.ExGSigma
 import Cat.Product
 
@@ -60,7 +58,7 @@ fun {α} a ↦ [a]
 #print List.singleton
 
 -- Flat is also defined
-/-- info: List.flatten.{u} {α : Type u} : List (List α) → List α -/
+/-- info: List.flatten.{u_1} {α : Type u_1} : List (List α) → List α -/
 #guard_msgs in
 #check List.flatten
 -- satsifying the desired equation.

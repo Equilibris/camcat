@@ -1,7 +1,7 @@
-/- import Mathlib.CategoryTheory.Category.Cat.Terminal -/
 import Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts
+import Mathlib.CategoryTheory.Closed.Cartesian
 
-namespace CategoryTheory.Limits
+namespace CategoryTheory
 
 universe u
 
@@ -10,9 +10,11 @@ variable
     [Category 𝓒]
     {U V W X Y Z P T : 𝓒}
 
+namespace Limits
+
 section prod
 
-variable 
+variable
     (fst : P ⟶ X)
     (snd : P ⟶ Y)
 
@@ -119,93 +121,74 @@ def IsBinaryProduct.iso
   hom_inv_id := hom_ext h₁ (by simp) (by simp)
   inv_hom_id := hom_ext h₂ (by simp) (by simp)
 
-/- def IsBinaryProduct.leftUnitor -/
-/-     {X Y P T : 𝓒} -/
-/-     (it : IsTerminal T) -/
-/-      -/
-/-     {tfst : (⊤_ 𝓒) ⨯ P ⟶ (⊤_ 𝓒)} {tsnd : (⊤_ 𝓒) ⨯ P ⟶ P} -/
-/-     (h : IsBinaryProduct tfst tsnd) -/
-/-     : (⊤_ 𝓒) ⨯ P ≅ P where -/
-/-   hom := tsnd -/
-/-   inv := h.lift (terminal.from P) (𝟙 P) -/
-/-   hom_inv_id := by -/
-/-     apply h.hom_ext -/
-/-     · simp [h.lift_fst] -/
-/-       rw [terminal.comp_from] -/
-/-     · simp [h.lift_snd] -/
-/-   inv_hom_id := by simp [h.lift_snd] -/
-/-  -/
-/- def IsBinaryProduct.rightUnitor -/
-/-     [HasTerminal 𝓒] -/
-/-     {P : 𝓒} -/
-/-     {tfst : P ⨯ (⊤_ 𝓒) ⟶ P} {tsnd : P ⨯ (⊤_ 𝓒) ⟶ (⊤_ 𝓒)} -/
-/-     (h : IsBinaryProduct tfst tsnd) -/
-/-     : P ⨯ (⊤_ 𝓒) ≅ P where -/
-/-   hom := tfst -/
-/-   inv := h.lift (𝟙 P) (terminal.from P) -/
-/-   hom_inv_id := by -/
-/-     apply h.hom_ext -/
-/-     · simp [h.lift_fst] -/
-/-     · simp [h.lift_snd] -/
-/-       rw [terminal.comp_from] -/
-/-   inv_hom_id := by simp [h.lift_fst] -/
-/-  -/
-/- def IsBinaryProduct.associator -/
-/-     {P Q R PQ_R PQ QR : 𝓒} -/
-/-     {pq_fst : PQ ⟶ P} {pq_snd : PQ ⟶ Q} -/
-/-     {qr_fst : QR ⟶ Q} {qr_snd : QR ⟶ R} -/
-/-     {pqr_fst : PQ_R ⟶ PQ} {pqr_snd : PQ_R ⟶ R} -/
-/-     {p_qr_fst : P ⨯ QR ⟶ P} {p_qr_snd : P ⨯ QR ⟶ QR} -/
-/-     (h_PQ : IsBinaryProduct pq_fst pq_snd) -/
-/-     (h_QR : IsBinaryProduct qr_fst qr_snd) -/
-/-     (h_PQ_R : IsBinaryProduct pqr_fst pqr_snd) -/
-/-     (h_P_QR : IsBinaryProduct p_qr_fst p_qr_snd) -/
-/-     : PQ_R ≅ P ⨯ QR where -/
-/-   hom := h_P_QR.lift (pqr_fst ≫ pq_fst) (h_QR.lift (pqr_fst ≫ pq_snd) pqr_snd) -/
-/-   inv := h_PQ_R.lift (h_PQ.lift p_qr_fst (p_qr_snd ≫ qr_fst)) (p_qr_snd ≫ qr_snd) -/
-/-   hom_inv_id := by -/
-/-     apply h_PQ_R.hom_ext -/
-/-     · simp [h_P_QR.lift_fst, h_PQ.lift_fst] -/
-/-     · simp [h_P_QR.lift_snd, h_QR.lift_snd, h_PQ.lift_snd] -/
-/-   inv_hom_id := by -/
-/-     apply h_P_QR.hom_ext -/
-/-     · simp [h_PQ_R.lift_fst, h_PQ.lift_fst] -/
-/-     · simp [h_PQ_R.lift_snd, h_QR.lift_fst, h_QR.lift_snd] -/
+def IsBinaryProduct.leftUnitor
+    {X P T : 𝓒}
+    (it : IsTerminal T)
+    {tfst : P ⟶ T} {tsnd : P ⟶ X}
+    (h : IsBinaryProduct tfst tsnd)
+    : P ≅ X where
+  hom := tsnd
+  inv := h.lift (it.from _) (𝟙 X)
+  hom_inv_id := by
+    apply h.hom_ext
+    · simp only [lift_comp, IsTerminal.comp_from, Category.comp_id, lift_fst, Category.id_comp]
+      exact IsTerminal.hom_ext it (it.from P) tfst
+    · simp
+  inv_hom_id := by simp
+
+def IsBinaryProduct.rightUnitor
+    {X P T : 𝓒}
+    (it : IsTerminal T)
+    {tfst : P ⟶ X} {tsnd : P ⟶ T}
+    (h : IsBinaryProduct tfst tsnd)
+    : P ≅ X where
+  hom := tfst
+  inv := h.lift (𝟙 X) (it.from _)
+  hom_inv_id := by
+    apply h.hom_ext
+    · simp 
+    · simp only [lift_comp, Category.comp_id, IsTerminal.comp_from, lift_snd, Category.id_comp]
+      exact IsTerminal.hom_ext it (it.from P) tsnd
+  inv_hom_id := by simp
+
+def IsBinaryProduct.associator
+    {A B C AB BC AB_C A_BC : 𝓒}
+
+    {aba : AB ⟶ A} {abb : AB ⟶ B}
+    {bcb : BC ⟶ B} {bcc : BC ⟶ C}
+
+    {ab_c_ab : AB_C ⟶ AB} {ab_c_c : AB_C ⟶ C}
+    {a_bc_a : A_BC ⟶ A} {a_bc_bc : A_BC ⟶ BC}
+    (h_AB : IsBinaryProduct aba abb)
+    (h_BC : IsBinaryProduct bcb bcc)
+    (h_AB_C : IsBinaryProduct ab_c_ab ab_c_c)
+    (h_A_BC : IsBinaryProduct a_bc_a a_bc_bc)
+    : AB_C ≅ A_BC where
+  hom := h_A_BC.lift (ab_c_ab ≫ aba) (h_BC.lift (ab_c_ab ≫ abb) ab_c_c)
+  inv := h_AB_C.lift (h_AB.lift a_bc_a (a_bc_bc ≫ bcb)) (a_bc_bc ≫ bcc)
+  hom_inv_id := by
+    apply h_AB_C.hom_ext
+    · apply h_AB.hom_ext
+      <;> simp only [lift_comp, lift_fst, Category.id_comp, lift_snd, Category.id_comp]
+      rw [←Category.assoc]
+      simp
+    · simp only [lift_comp, lift_fst, lift_snd, Category.id_comp]
+      rw [←Category.assoc]
+      simp
+  inv_hom_id := by
+    apply h_A_BC.hom_ext
+    · simp only [lift_comp, lift_snd, lift_fst, Category.id_comp]
+      rw [←Category.assoc]
+      simp
+
+    · apply h_BC.hom_ext
+      <;> simp only [lift_comp, lift_snd, lift_fst, Category.id_comp]
+      rw [←Category.assoc]
+      simp
 
 noncomputable def productIsBinaryProduct [HasBinaryProduct X Y]
     : IsBinaryProduct (prod.fst : X ⨯ Y ⟶ X) prod.snd :=
   prodIsProd X Y
-
-/--
-info: def CategoryTheory.Limits.prod.leftUnitor.{v, u} : {C : Type u} →
-  [inst : Category.{v, u} C] →
-    [inst_1 : HasTerminal C] → (P : C) → [inst_2 : HasBinaryProduct (⊤_ C) P] → (⊤_ C) ⨯ P ≅ P :=
-fun {C} [Category.{v, u} C] [HasTerminal C] P [HasBinaryProduct (⊤_ C) P] ↦
-  { hom := prod.snd, inv := prod.lift (terminal.from P) (𝟙 P), hom_inv_id := ⋯, inv_hom_id := ⋯ }
--/
-#guard_msgs in
-#print prod.leftUnitor
-
-/--
-info: def CategoryTheory.Limits.prod.rightUnitor.{v, u} : {C : Type u} →
-  [inst : Category.{v, u} C] →
-    [inst_1 : HasTerminal C] → (P : C) → [inst_2 : HasBinaryProduct P (⊤_ C)] → P ⨯ ⊤_ C ≅ P :=
-fun {C} [Category.{v, u} C] [HasTerminal C] P [HasBinaryProduct P (⊤_ C)] ↦
-  { hom := prod.fst, inv := prod.lift (𝟙 P) (terminal.from P), hom_inv_id := ⋯, inv_hom_id := ⋯ }
--/
-#guard_msgs in
-#print prod.rightUnitor
-
-/--
-info: def CategoryTheory.Limits.prod.associator.{v, u} : {C : Type u} →
-  [inst : Category.{v, u} C] → [inst_1 : HasBinaryProducts C] → (P Q R : C) → (P ⨯ Q) ⨯ R ≅ P ⨯ Q ⨯ R :=
-fun {C} [Category.{v, u} C] [HasBinaryProducts C] P Q R ↦
-  { hom := prod.lift (prod.fst ≫ prod.fst) (prod.lift (prod.fst ≫ prod.snd) prod.snd),
-    inv := prod.lift (prod.lift prod.fst (prod.snd ≫ prod.fst)) (prod.snd ≫ prod.snd), hom_inv_id := ⋯,
-    inv_hom_id := ⋯ }
--/
-#guard_msgs in
-#print prod.associator
 
 end prod
 
@@ -322,5 +305,102 @@ noncomputable def coprod_homset_equiv
 
 end coprod
 
-end CategoryTheory.Limits
+end Limits
+
+-- Recursive tactic for repeated reassociation
+syntax "reassoc_rw" (num)* : tactic
+
+macro_rules
+| `(tactic| reassoc_rw) => `(tactic| skip)
+| `(tactic| reassoc_rw $n:num $ns:num*) =>
+    `(tactic|
+      nth_rw $n:num [← Category.assoc];
+      simp only [
+        _root_.CategoryTheory.Limits.IsBinaryProduct.lift_fst,
+        _root_.CategoryTheory.Limits.IsBinaryProduct.lift_snd,
+        _root_.CategoryTheory.Limits.IsBinaryProduct.lift_comp,
+        _root_.CategoryTheory.Category.assoc,
+        _root_.CategoryTheory.Category.comp_id,
+        _root_.CategoryTheory.Category.id_comp,
+        ];
+      reassoc_rw $ns:num*)
+
+open Limits in
+class SimpleCartesianMonoidalCategory (C : Type u) [Category C] where
+  tensorUnit : C
+  isTerminalTensorUnit : Limits.IsTerminal tensorUnit
+
+  tensorObj : C → C → C
+  fst (X Y : C) : tensorObj X Y ⟶ X
+  snd (X Y : C) : tensorObj X Y ⟶ Y
+
+  tensorProductIsBinaryProduct (X Y : C) : IsBinaryProduct (fst X Y) (snd X Y)
+
+open Limits in
+instance scmcCmc [scmc : SimpleCartesianMonoidalCategory 𝓒] : CartesianMonoidalCategory 𝓒 where
+  tensorUnit := scmc.tensorUnit
+  isTerminalTensorUnit := scmc.isTerminalTensorUnit
+
+  tensorObj := scmc.tensorObj
+
+  fst := scmc.fst
+  snd := scmc.snd
+
+  tensorProductIsBinaryProduct := scmc.tensorProductIsBinaryProduct
+
+  associator X Y Z := IsBinaryProduct.associator
+    (scmc.tensorProductIsBinaryProduct _ _)
+    (scmc.tensorProductIsBinaryProduct _ _)
+    (scmc.tensorProductIsBinaryProduct _ _)
+    (scmc.tensorProductIsBinaryProduct _ _)
+  leftUnitor X := IsBinaryProduct.leftUnitor 
+    scmc.isTerminalTensorUnit
+    (scmc.tensorProductIsBinaryProduct _ _)
+  rightUnitor X := IsBinaryProduct.rightUnitor
+    scmc.isTerminalTensorUnit
+    (scmc.tensorProductIsBinaryProduct _ _)
+  whiskerLeft X {Y₁ Y₂} m :=
+    (scmc.tensorProductIsBinaryProduct X Y₂).lift (scmc.fst _ _) ((scmc.snd _ _) ≫ m)
+  whiskerRight {Y₁ Y₂} m X :=
+    (scmc.tensorProductIsBinaryProduct Y₂ X).lift (scmc.fst _ _ ≫ m) (scmc.snd _ _)
+
+  tensorHom_comp_tensorHom f₁ f₂ g₁ g₂ := by 
+    apply (scmc.tensorProductIsBinaryProduct _ _).hom_ext
+    · reassoc_rw 1 1
+    · reassoc_rw 1 1 1 2
+
+  associator_naturality f₁ f₂ f₃ := by
+    simp only [IsBinaryProduct.lift_comp, IsBinaryProduct.lift_fst, IsBinaryProduct.associator,
+      IsBinaryProduct.lift_snd]
+    apply (scmc.tensorProductIsBinaryProduct _ _).hom_ext
+    any_goals apply (scmc.tensorProductIsBinaryProduct _ _).hom_ext
+    · reassoc_rw 1 2
+    · reassoc_rw 1 1 2 2 2 2
+    · reassoc_rw 1 1 1 1 1 1
+  leftUnitor_naturality f := by
+    simp [IsBinaryProduct.leftUnitor]
+  rightUnitor_naturality f := by
+    simp [IsBinaryProduct.rightUnitor]
+
+  pentagon W X Y Z := by
+    simp only [IsBinaryProduct.associator, IsBinaryProduct.lift_comp, IsBinaryProduct.lift_fst,
+      IsBinaryProduct.lift_snd]
+    apply (scmc.tensorProductIsBinaryProduct _ _).hom_ext
+    any_goals apply (scmc.tensorProductIsBinaryProduct _ _).hom_ext
+    any_goals apply (scmc.tensorProductIsBinaryProduct _ _).hom_ext
+    · reassoc_rw 1 2
+    · reassoc_rw 1 1 1 1 1 1 2
+    · reassoc_rw 1 1 1 1 1 1
+    · reassoc_rw 1 1 1
+  triangle X Y := by
+    simp [IsBinaryProduct.associator, IsBinaryProduct.rightUnitor, IsBinaryProduct.leftUnitor]
+    apply (scmc.tensorProductIsBinaryProduct _ _).hom_ext
+    · simp
+    · reassoc_rw 1
+  fst_def X Y := by
+    simp [IsBinaryProduct.rightUnitor]
+  snd_def X Y := by
+    simp [IsBinaryProduct.leftUnitor]
+
+end CategoryTheory
 
