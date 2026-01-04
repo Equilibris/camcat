@@ -1,0 +1,71 @@
+variable {A a}
+
+namespace List
+
+inductive MemT {A} : A → List A → Type
+  | hd {a as} : MemT a (a :: as)
+  | tl {bs a b} : MemT a bs → MemT a (b :: bs)
+
+namespace MemT
+
+def shift {l₁}
+    : {l₂ : List A}
+    → l₁.MemT a
+    → (l₂ ++ l₁).MemT a
+  | [], h => h
+  | _ :: _, h => .tl (shift h)
+
+def sandwitch_shift {l₁}
+    : {l l₂ : List A}
+    → (l ++ l₁).MemT a
+    → (l ++ (l₂ ++ l₁)).MemT a
+  | [], _, h => h.shift
+  | _ :: _, _, .hd => .hd
+  | _ :: _, _, .tl v => .tl v.sandwitch_shift
+
+def remove
+    {v}
+    : {l : List A}
+    → l.MemT v
+    → List A 
+  | _ :: t, .hd => t
+  | h :: _, .tl h' => h :: remove h'
+
+end List.MemT
+
+inductive HList (f : A → Type) : List A → Type
+  | nil : HList f []
+  | cons {hd tl} : f hd → HList f tl → HList f (hd :: tl)
+
+namespace HList
+
+def get {f : A → Type} : {t : A} → {Γ : List A} → List.MemT t Γ → HList f Γ → f t
+  | _, _ :: _, .hd, .cons h _ => h
+  | _, _ :: _, .tl v, .cons _ tl => tl.get v
+
+instance {Γ : List A} {f : A → Type} {t : A} : GetElem (HList f Γ) (List.MemT t Γ) (f t) (fun _ _ => True) where
+  getElem h v _ := h.get v
+
+def map {f g} {Γ : List A} (h : ∀ {v}, f v → g v) : HList f Γ → HList g Γ
+  | .nil => .nil
+  | .cons hd tl => .cons (h hd) <| tl.map h
+
+@[simp]
+def get_map {Γ : List A}
+    {f g : A → Type}
+    {h : ∀ {v}, f v → g v}
+    : {ls : HList f Γ} → (i : List.MemT a Γ) → (ls.map h)[i] = h ls[i] 
+  | .cons _ _, .hd => rfl
+  | .cons hd tl, .tl h' => by 
+    change get h' (map h tl) = h tl[h']
+    exact get_map _
+
+@[simp]
+def get_map'
+    {Γ : List A}
+    {f g : A → Type}
+    {h : ∀ {v}, f v → g v}
+    : {ls : HList f Γ} → (i : List.MemT a Γ) → (ls.map h).get i = h ls[i] :=
+  get_map
+
+end HList

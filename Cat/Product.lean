@@ -182,7 +182,7 @@ def IsBinaryProduct.associator
       rw [←Category.assoc]
       simp
 
-noncomputable def productIsBinaryProduct [HasBinaryProduct X Y]
+noncomputable def productIsBinaryProduct [p : HasBinaryProduct X Y]
     : IsBinaryProduct (prod.fst : X ⨯ Y ⟶ X) prod.snd :=
   prodIsProd X Y
 
@@ -248,6 +248,18 @@ theorem IsBinaryCoproduct.uniq
     | .mk .left => hf
     | .mk .right => hg
 
+def IsBinaryCoproduct.map
+    (fst : X ⟶ P)
+    (snd : Y ⟶ P)
+    {P' X' Y' : 𝓒}
+    {fst' : X' ⟶ P'}
+    {snd' : Y' ⟶ P'}
+    (hg : IsBinaryCoproduct fst snd)
+    (f : X ⟶ X')
+    (g : Y ⟶ Y')
+    : P ⟶ P' :=
+  hg.desc (f ≫ fst') (g ≫ snd')
+
 def IsBinaryCoproduct.hom_ext
     (h : IsBinaryCoproduct inl inr)
     {f g : P ⟶ T}
@@ -287,7 +299,7 @@ def IsBinaryCoproduct.iso
   hom_inv_id := hom_ext h₁ (by simp) (by simp)
   inv_hom_id := hom_ext h₂ (by simp) (by simp)
 
-noncomputable def coproductIsBinaryCoproduct [HasBinaryCoproduct X Y]
+noncomputable def coproductIsBinaryCoproduct [cp : HasBinaryCoproduct X Y]
     : IsBinaryCoproduct (coprod.inl : X ⟶ X ⨿ Y) coprod.inr :=
   coprodIsCoprod X Y
 

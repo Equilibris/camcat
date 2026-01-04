@@ -12,6 +12,7 @@ import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 import Cat.L1
 import Cat.L2Live
 import Cat.Product
+import Cat.SimpleMonCat
 
 open CategoryTheory 
 open Limits
@@ -457,7 +458,6 @@ theorem ex4.a
     : ∀ A B : 𝓒, Subsingleton (A ⟶ B) := by
   have deq : DecidableEq 𝓒 := Classical.typeDecidableEq 𝓒
   by_contra! h
-  simp only [subsingleton_iff, not_forall] at h
   rcases h with ⟨A,B,f,g,hneq⟩
   have deqhom: DecidableEq (A ⟶ B) := Classical.typeDecidableEq _
   have mf := morphFin A B

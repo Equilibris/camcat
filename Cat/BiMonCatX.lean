@@ -362,68 +362,68 @@ lemma associator_inv_inl_inr (X Y Z : C) :
   stop
   simp [inl_def, ← cowhiskerLeft_rightUnitor, -cowhiskerLeft_rightUnitor]
 
-@[reassoc (attr := simp)]
-lemma associator_inv_inr (X Y Z : C) :
-    inr _ _ ≫ (α'_ X Y Z).inv = inr _ _ ≫ inl _ _ := by
-  stop
-  simp [inr_def, ← leftUnitor_cowhiskerRight, -leftUnitor_cowhiskerRight,
-    ← comp_cowhiskerRight]
-
-@[reassoc (attr := simp)]
-lemma desc_desc_associator_hom {X Y Z W : C} (f : Y ⟶ X) (g : Z ⟶ X) (h : W ⟶ X) :
-    desc (desc f g) h ≫ (α'_ Y Z W).hom = desc f (desc g h) := by
-  cat_disch
-
-@[reassoc (attr := simp)]
-lemma desc_desc_associator_inv {X Y Z W : C} (f : Y ⟶ X) (g : Z ⟶ X) (h : W ⟶ X) :
-    desc f (desc g h) ≫ (α'_ Y Z W).inv = desc (desc f g) h := by
-  cat_disch
-
-lemma leftUnitor_hom (X : C) : (λ'_ X).hom = inr _ _ := by simp [inr_def]
-lemma rightUnitor_hom (X : C) : (ρ'_ X).hom = inl _ _ := by simp [inl_def]
-
-@[reassoc (attr := simp)]
-lemma leftUnitor_inv_inl (X : C) :
-    (λ'_ X).inv ≫ inl _ _ = ofUnit _ := ofUnit_unique _ _
-
-@[reassoc (attr := simp)]
-lemma leftUnitor_inv_inr (X : C) :
-    (λ'_ X).inv ≫ inr _ _ = 𝟙 X := by simp [inr_def]
-
-@[reassoc (attr := simp)]
-lemma rightUnitor_inv_inl (X : C) :
-    (ρ'_ X).inv ≫ inl _ _ = 𝟙 X := by simp [inl_def]
-
-@[reassoc (attr := simp)]
-lemma rightUnitor_inv_inr (X : C) :
-    (ρ'_ X).inv ≫ inr _ _ = ofUnit _ := ofUnit_unique _ _
-
-@[reassoc]
-lemma cowhiskerLeft_ofUnit_comp_rightUnitor_hom (X Y : C) : X ◁ᵒᵖ ofUnit Y ≫ (ρ'_ X).hom = inl X Y := by
-  rw [← cancel_mono (ρ'_ X).inv]; aesop
-
-@[reassoc]
-lemma cowhiskerRight_ofUnit_comp_leftUnitor_hom (X Y : C) : ofUnit X ▷ᵒᵖ Y ≫ (λ'_ Y).hom = inr X Y := by
-  rw [← cancel_mono (λ'_ Y).inv]; aesop
-
-@[reassoc (attr := simp)]
-lemma desc_leftUnitor_hom {X Y : C} (f : 𝟘_ C ⟶ X) (g : Y ⟶ X) :
-    desc f g ≫ (λ'_ Y).hom = g := by
-  rw [← Iso.eq_comp_inv]
-  cat_disch
-
-@[reassoc (attr := simp)]
-lemma desc_rightUnitor_hom {X Y : C} (f : Y ⟶ X) (g : 𝟘_ C ⟶ X) :
-    desc f g ≫ (ρ'_ Y).hom = f := by
-  rw [← Iso.eq_comp_inv]
-  cat_disch
-
-/-- Universal property of the Cartesian product: Maps to `X ⨿' Y` correspond to pairs of maps to `X`
-and to `Y`. -/
-@[simps]
-def homEquivToProd {X Y Z : C} : (Z ⟶ X ⨿' Y) ≃ (Z ⟶ X) × (Z ⟶ Y) where
-  toFun f := ⟨f ≫ inl _ _, f ≫ inr _ _⟩
-  invFun f := lift f.1 f.2
-  left_inv _ := by simp
-  right_inv _ := by simp
-
+/- @[reassoc (attr := simp)] -/
+/- lemma associator_inv_inr (X Y Z : C) : -/
+/-     inr _ _ ≫ (α'_ X Y Z).inv = inr _ _ ≫ inl _ _ := by -/
+/-   stop -/
+/-   simp [inr_def, ← leftUnitor_cowhiskerRight, -leftUnitor_cowhiskerRight, -/
+/-     ← comp_cowhiskerRight] -/
+/-  -/
+/- @[reassoc (attr := simp)] -/
+/- lemma desc_desc_associator_hom {X Y Z W : C} (f : Y ⟶ X) (g : Z ⟶ X) (h : W ⟶ X) : -/
+/-     desc (desc f g) h ≫ (α'_ Y Z W).hom = desc f (desc g h) := by -/
+/-   cat_disch -/
+/-  -/
+/- @[reassoc (attr := simp)] -/
+/- lemma desc_desc_associator_inv {X Y Z W : C} (f : Y ⟶ X) (g : Z ⟶ X) (h : W ⟶ X) : -/
+/-     desc f (desc g h) ≫ (α'_ Y Z W).inv = desc (desc f g) h := by -/
+/-   cat_disch -/
+/-  -/
+/- lemma leftUnitor_hom (X : C) : (λ'_ X).hom = inr _ _ := by simp [inr_def] -/
+/- lemma rightUnitor_hom (X : C) : (ρ'_ X).hom = inl _ _ := by simp [inl_def] -/
+/-  -/
+/- @[reassoc (attr := simp)] -/
+/- lemma leftUnitor_inv_inl (X : C) : -/
+/-     (λ'_ X).inv ≫ inl _ _ = ofUnit _ := ofUnit_unique _ _ -/
+/-  -/
+/- @[reassoc (attr := simp)] -/
+/- lemma leftUnitor_inv_inr (X : C) : -/
+/-     (λ'_ X).inv ≫ inr _ _ = 𝟙 X := by simp [inr_def] -/
+/-  -/
+/- @[reassoc (attr := simp)] -/
+/- lemma rightUnitor_inv_inl (X : C) : -/
+/-     (ρ'_ X).inv ≫ inl _ _ = 𝟙 X := by simp [inl_def] -/
+/-  -/
+/- @[reassoc (attr := simp)] -/
+/- lemma rightUnitor_inv_inr (X : C) : -/
+/-     (ρ'_ X).inv ≫ inr _ _ = ofUnit _ := ofUnit_unique _ _ -/
+/-  -/
+/- @[reassoc] -/
+/- lemma cowhiskerLeft_ofUnit_comp_rightUnitor_hom (X Y : C) : X ◁ᵒᵖ ofUnit Y ≫ (ρ'_ X).hom = inl X Y := by -/
+/-   rw [← cancel_mono (ρ'_ X).inv]; aesop -/
+/-  -/
+/- @[reassoc] -/
+/- lemma cowhiskerRight_ofUnit_comp_leftUnitor_hom (X Y : C) : ofUnit X ▷ᵒᵖ Y ≫ (λ'_ Y).hom = inr X Y := by -/
+/-   rw [← cancel_mono (λ'_ Y).inv]; aesop -/
+/-  -/
+/- @[reassoc (attr := simp)] -/
+/- lemma desc_leftUnitor_hom {X Y : C} (f : 𝟘_ C ⟶ X) (g : Y ⟶ X) : -/
+/-     desc f g ≫ (λ'_ Y).hom = g := by -/
+/-   rw [← Iso.eq_comp_inv] -/
+/-   cat_disch -/
+/-  -/
+/- @[reassoc (attr := simp)] -/
+/- lemma desc_rightUnitor_hom {X Y : C} (f : Y ⟶ X) (g : 𝟘_ C ⟶ X) : -/
+/-     desc f g ≫ (ρ'_ Y).hom = f := by -/
+/-   rw [← Iso.eq_comp_inv] -/
+/-   cat_disch -/
+/-  -/
+/- /-- Universal property of the Cartesian product: Maps to `X ⨿' Y` correspond to pairs of maps to `X` -/
+/- and to `Y`. -/ -/
+/- @[simps] -/
+/- def homEquivToProd {X Y Z : C} : (Z ⟶ X ⨿' Y) ≃ (Z ⟶ X) × (Z ⟶ Y) where -/
+/-   toFun f := ⟨f ≫ inl _ _, f ≫ inr _ _⟩ -/
+/-   invFun f := lift f.1 f.2 -/
+/-   left_inv _ := by simp -/
+/-   right_inv _ := by simp -/
+/-  -/

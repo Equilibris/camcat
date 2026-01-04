@@ -2,6 +2,7 @@ import Mathlib.CategoryTheory.Category.Basic
 import Mathlib.Order.Monotone.Basic
 import Mathlib.Algebra.Group.Defs
 import Mathlib.Algebra.Group.Hom.Defs
+import Mathlib.Order.Hom.Basic
 
 open CategoryTheory
 
@@ -13,20 +14,17 @@ instance : Category (Type u) where
   comp f g := g ∘ f
 
 instance {X : Sigma Preorder} : Preorder X.fst := X.snd
+instance {X : Sigma PartialOrder} : PartialOrder X.fst := X.snd
 
 instance preOrd : Category (Sigma Preorder) where
   Hom := fun s t => (f : s.fst → t.fst) ×' Monotone f
   id v := ⟨id, fun _ _ => id⟩
   comp := fun f g => ⟨g.fst ∘ f.fst, Monotone.comp g.snd f.snd⟩
 
-instance poOrd : Category (Sigma PartialOrder) where
-  Hom := fun ⟨s, is⟩ ⟨t, it⟩ => (f : s → t) ×' Monotone f
-  id v := ⟨id, fun x y a ↦ a⟩
-  comp := fun {a b c} ⟨f, fm⟩ ⟨g, gm⟩ =>
-    have ⟨a, ia⟩ := a
-    have ⟨b, ib⟩ := b
-    have ⟨c, ic⟩ := c
-    ⟨g ∘ f, Monotone.comp gm fm⟩
+instance poOrd : Category.{u, u + 1} (Sigma PartialOrder : Type (u+1)) where
+  Hom a b := a.1 →o b.1
+  id v := OrderHom.id
+  comp a b := OrderHom.comp b a
 
 instance poset {t : Type u} [Preorder t] : Category t where
   Hom a b := PLift (a ≤ b)
