@@ -39,6 +39,14 @@ def IsBinaryProduct.lift
   IsLimit.lift h { pt := T, π := mapPair f g}
 
 @[simp]
+theorem IsBinaryProduct.ofUniqueHom_lift {fst snd}
+    {lift : {T : 𝓒} → (T ⟶ X) → (T ⟶ Y) → (T ⟶ P)}
+    {hl₁ : ∀ {T} (f : T ⟶ X) (g : T ⟶ Y), lift f g ≫ fst = f}
+    {hl₂ : ∀ {T} (f : T ⟶ X) (g : T ⟶ Y), lift f g ≫ snd = g}
+    {uniq : ∀ {T} (f : T ⟶ X) (g : T ⟶ Y) (m : T ⟶ P), m ≫ fst = f → m ≫ snd = g → m = lift f g}
+    : (ofUniqueHom lift hl₁ hl₂ uniq).lift = (lift : (T ⟶ X) → (T ⟶ Y) → (T ⟶ P)) := rfl
+
+@[simp]
 theorem IsBinaryProduct.lift_fst
     (h : IsBinaryProduct fst snd)
     (f : T ⟶ X)

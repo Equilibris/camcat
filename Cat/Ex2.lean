@@ -7,7 +7,7 @@ import Mathlib.Algebra.Group.Defs
 import Mathlib.CategoryTheory.Category.Basic
 import Mathlib.CategoryTheory.Category.Cat.Terminal
 import Mathlib.CategoryTheory.Iso
-import Mathlib.CategoryTheory.Closed.Cartesian
+import Mathlib.CategoryTheory.Monoidal.Closed.Cartesian
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 import Cat.L1
 import Cat.L2Live
@@ -167,7 +167,7 @@ def corec_dest
       <;> rename_i heq
       · obtain rfl := (Option.some.injEq _ _).mp (h.symm.trans heq)
         rfl
-      · exact Option.noConfusion (h.symm.trans heq)
+      · simp [corec.f]
 
 def Bisim.Is (R : Conat → Conat → Prop) : Prop :=
   ∀ a b, R a b → Option.Rel R a.dest b.dest

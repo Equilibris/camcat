@@ -1,4 +1,5 @@
-import Mathlib.CategoryTheory.Closed.Cartesian
+/- import Mathlib.CategoryTheory.Closed.Cartesian -/
+import Mathlib.CategoryTheory.Monoidal.Cartesian.Basic
 import Cat.Product
 
 universe u
@@ -95,7 +96,8 @@ instance scmcCmc [scmc : SimpleCartesianMonoidalCategory 𝓒] : CartesianMonoid
     · reassoc_rw 1 1 1 1 1 1
     · reassoc_rw 1 1 1
   triangle X Y := by
-    simp [IsBinaryProduct.associator, IsBinaryProduct.rightUnitor, IsBinaryProduct.leftUnitor]
+    simp only [IsBinaryProduct.associator, IsBinaryProduct.leftUnitor, IsBinaryProduct.lift_comp,
+      IsBinaryProduct.lift_fst, IsBinaryProduct.rightUnitor]
     apply (scmc.tensorProductIsBinaryProduct _ _).hom_ext
     · simp
     · reassoc_rw 1

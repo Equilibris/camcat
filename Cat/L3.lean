@@ -13,6 +13,7 @@ instance : PartialOrder PEmpty where
   le_refl := fun x => PEmpty.elim x
   le_trans := fun x => PEmpty.elim x
   le_antisymm := fun x => PEmpty.elim x
+  lt_iff_le_not_ge x := x.elim
 
 /- instance : @Limits.HasInitial (Sigma PartialOrder) poOrd := by -/
 /-   apply Limits.IsInitial.hasInitial -/
