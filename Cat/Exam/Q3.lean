@@ -65,10 +65,14 @@ example [HasInitial (Alg F)] : IsIso ((⊥_ (Alg F)).α) where
         _ = AlgHom.h (𝟙 (⊥_ Alg F)) := by rw
                                         [initial.hom_ext (𝟙 (⊥_ Alg F)) (initial.to (⊥_ Alg F))]
       constructor
-      · have := (F.map_comp _ _).trans (initial.to (FUp F (⊥_ _))).eq
-        dsimp at this
-        rw [←this]; clear this
-        rw [rhs, Functor.map_id]
+      · calc
+          (⊥_ Alg F).α ≫ (initial.to (FUp F (⊥_ Alg F))).h
+            = F.map (initial.to (FUp F _)).h ≫ (FUp F (⊥_ _)).α            := by rw
+                                                                        [←(initial.to (FUp F _)).eq]
+        _ = F.map (initial.to (FUp F _)).h ≫ F.map (⊥_ Alg F).α       := rfl
+        _ = F.map ((initial.to (FUp F (⊥_ Alg F))).h ≫ (⊥_ Alg F).α)  := by rw [F.map_comp]
+        _ = F.map (𝟙 _)                                               := by rw [rhs]
+        _ = 𝟙 _                                                       := by rw [Functor.map_id]
       · exact rhs,
   ⟩
 
